@@ -3,16 +3,16 @@ import { Settings } from "lucide-react";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Switch } from "@/components/ui/switch";
 
-export type AppSettings = { autoRefs: boolean; identity: boolean; mockups: boolean };
+export type AppSettings = { autoRefs: boolean; grok: boolean; identity: boolean; mockups: boolean };
 const KEY = "vectorthis.settings.v1";
-export const DEFAULT_SETTINGS: AppSettings = { autoRefs: true, identity: false, mockups: false };
+export const DEFAULT_SETTINGS: AppSettings = { autoRefs: true, grok: false, identity: false, mockups: false };
 
 /** Settings live only in this browser; every access is guarded (storage may be unavailable). */
 export function loadSettings(): AppSettings {
   try {
     const raw = globalThis.localStorage?.getItem(KEY);
     const v = raw ? (JSON.parse(raw) as Partial<AppSettings>) : {};
-    return { autoRefs: v.autoRefs !== false, identity: v.identity === true, mockups: v.mockups === true };
+    return { autoRefs: v.autoRefs !== false, grok: v.grok === true, identity: v.identity === true, mockups: v.mockups === true };
   } catch {
     return DEFAULT_SETTINGS;
   }
@@ -36,6 +36,7 @@ export function SettingsSheet() {
   };
   const rows: { key: keyof AppSettings; title: string; note: string; soon?: boolean }[] = [
     { key: "autoRefs", title: "Find references automatically", note: "Before each first round, LOGOO searches for reference logos and picks the best for style, concept and lettering. Review them after any round." },
+    { key: "grok", title: "Use Grok for 2 of 4 concepts", note: "Off: all four concepts come from OpenAI. On: two come from Grok for more variety." },
     { key: "identity", title: "Brand identity package", note: "Palette, type pairing, logo versions, favicon and social avatars.", soon: true },
     { key: "mockups", title: "Mockups", note: "Your logo on cards, signage and merchandise. Uses extra image generations.", soon: true },
   ];

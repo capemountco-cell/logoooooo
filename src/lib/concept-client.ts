@@ -12,6 +12,7 @@ import { logoFile } from "@/lib/logo-files";
 import { streamImage } from "@/lib/stream-image";
 import type { AutoReference, Candidate, SearchProvider } from "@/lib/reference-search";
 import { TILE, tileRects } from "@/lib/brief-extract";
+import { aggregateSwatches, buildPalette, logoSwatches, type PaletteColor } from "@/lib/palette";
 
 /** Pixels of an image (data URL or file), converted to sRGB by the canvas, long side ≤ maxSide. */
 export async function imagePixels(src: string | Blob, maxSide = 1024) {
@@ -142,7 +143,7 @@ async function signatureOf(image: string) {
   return coverageSignature(coverageFromRgba(rgba, width, height), width, height);
 }
 
-export type FoundRefs = { provider: SearchProvider; refs: RefItem[]; candidates: Candidate[] };
+export type FoundRefs = { provider: SearchProvider; refs: RefItem[]; candidates: Candidate[]; samples: string[] };
 
 /** Asks the server to search, pick and describe references for the brief. */
 export async function findAutoRefs(brief: LogoBrief, opts: { exclude?: string[]; roles?: ReferenceRole[] }, signal: AbortSignal): Promise<FoundRefs> {
@@ -153,13 +154,13 @@ export async function findAutoRefs(brief: LogoBrief, opts: { exclude?: string[];
     signal,
   });
   if (!res.ok) throw await failure(res, "Couldn't find references.");
-  const json = (await res.json()) as { provider: SearchProvider; references: AutoReference[]; candidates: Candidate[] };
+  const json = (await res.json()) as { provider: SearchProvider; references: AutoReference[]; candidates: Candidate[]; samples?: string[] };
   const refs = await Promise.all(
     json.references.map(async (r): Promise<RefItem> => ({
       id: crypto.randomUUID(), role: r.role, description: r.description, image: r.image, signature: await signatureOf(r.image), auto: true, candidate: r.candidate,
     })),
   );
-  return { provider: json.provider, refs, candidates: json.candidates };
+  return { provider: json.provider, refs, candidates: json.candidates, samples: json.samples ?? [] };
 }
 
 /** Describes one reference for a role: an uploaded file, or a search candidate's thumbnail. */
@@ -231,4 +232,22 @@ export async function cleanConcept(src: string): Promise<string> {
   if (!ctx) return src;
   ctx.putImageData(new ImageData(new Uint8ClampedArray(clean), width, height), 0, 0);
   return canvas.toDataURL("image/png");
+}
+
+/**
+ * A palette for a brief that names no colours: the colours measured from real logos in the same
+ * space (Brave reference samples), shaped by colour theory; colour-psychology defaults if none load.
+ */
+export async function measurePalette(samples: string[], brief: LogoBrief): Promise<PaletteColor[]> {
+  const perLogo = (
+    await Promise.all(samples.map(async (src) => {
+      try {
+        const { width, height, rgba } = await imagePixels(src, 160);
+        return logoSwatches(rgba, width, height);
+      } catch {
+        return [];
+      }
+    }))
+  ).filter((s) => s.length);
+  return buildPalette(aggregateSwatches(perLogo), brief);
 }

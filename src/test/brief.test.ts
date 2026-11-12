@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { BRIEF_INSTRUCTIONS, BRIEF_SCHEMA, DEFAULT_LOGO_TYPE, LOGO_TYPES, normalizeBrief, referenceInstructions, splitBriefs, type LogoBrief } from "@/lib/brief";
 import {
-  buildConceptPrompt, buildFixPrompt, buildReviewPrompt, CONCEPT_PROVIDERS, checklist, crossCheckSpelling, expectedText, initials, parseReview, requiredText,
+  buildConceptPrompt, buildFixPrompt, buildReviewPrompt, CONCEPT_PROVIDERS, checklist, conceptProviders, crossCheckSpelling, expectedText, initials, parseReview, requiredText,
 } from "@/lib/concept-prompt";
 
 const brief = (over: Partial<LogoBrief> = {}): LogoBrief => normalizeBrief({
@@ -59,6 +59,9 @@ describe("concept prompts", () => {
   it("runs two concepts on OpenAI and two on Grok", () => {
     expect(CONCEPT_PROVIDERS.filter((p) => p === "openai")).toHaveLength(2);
     expect(CONCEPT_PROVIDERS.filter((p) => p === "grok")).toHaveLength(2);
+    // Grok is off by default: all four from OpenAI.
+    expect(conceptProviders(false)).toEqual(["openai", "openai", "openai", "openai"]);
+    expect(conceptProviders(true)).toEqual(CONCEPT_PROVIDERS);
   });
 
   it("locks the exact name and asks for unique custom lettering, not a stock font", () => {

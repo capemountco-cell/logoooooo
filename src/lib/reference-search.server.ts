@@ -61,7 +61,11 @@ export async function describeReference(image: string, role: ReferenceRole, sign
   return text.slice(0, 600);
 }
 
-export type FoundReferences = { provider: SearchProvider; references: AutoReference[]; candidates: Candidate[] };
+/**
+ * `samples`: thumbnails (data URLs) of the visual search's logos, so the browser can measure the
+ * colours real brands in this space use (palette.ts). Shown nowhere, stored nowhere.
+ */
+export type FoundReferences = { provider: SearchProvider; references: AutoReference[]; candidates: Candidate[]; samples: string[] };
 
 /**
  * Searches, lets the cheap vision model pick the best image per role, and describes each pick for
@@ -73,7 +77,7 @@ export async function findReferences(brief: LogoBrief, opts: { exclude?: string[
   const queries = referenceQueries(brief)
     .map((q) => ({ ...q, roles: q.roles.filter((r) => !opts.roles || opts.roles.includes(r)) }))
     .filter((q) => q.roles.length);
-  if (!queries.length) return { provider: "openverse", references: [], candidates: [] };
+  if (!queries.length) return { provider: "openverse", references: [], candidates: [], samples: [] };
   const searches = await Promise.all(queries.map((q) => searchImages(q.query, signal)));
   const provider = searches.some((s) => s.provider === "brave") ? "brave" : "openverse";
   const all = searches.flatMap((s) => s.candidates);
@@ -87,7 +91,8 @@ export async function findReferences(brief: LogoBrief, opts: { exclude?: string[
     }),
   );
   const flat = groups.flatMap((g) => g.items);
-  if (!flat.length) return { provider, references: [], candidates: all };
+  const samples = (groups.find((g) => g.roles.includes("style")) ?? groups[0])?.items.map((x) => x.image).slice(0, 12) ?? [];
+  if (!flat.length) return { provider, references: [], candidates: all, samples };
 
   const roles = groups.flatMap((g) => (g.items.length ? g.roles : []));
   let picks: { role: ReferenceRole; index: number }[] = [];
@@ -120,5 +125,5 @@ export async function findReferences(brief: LogoBrief, opts: { exclude?: string[
       }),
     )
   ).filter((r): r is AutoReference => Boolean(r));
-  return { provider, references, candidates: all };
+  return { provider, references, candidates: all, samples };
 }

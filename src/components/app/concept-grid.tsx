@@ -1,10 +1,52 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { whiteToArtboard } from "@/lib/artboard";
 import { ArrowUpRight, Check, ChevronDown, Circle, CircleAlert, Eye, Loader2, RotateCcw, X } from "lucide-react";
 import type { CheckDef } from "@/lib/concept-prompt";
 import type { ConceptState } from "@/lib/concept-pipeline";
 import { cn } from "@/lib/utils";
 
 const PROVIDER = { openai: "OpenAI", grok: "Grok" } as const;
+
+/** The artboard grey from the theme (falls back to the default token). */
+function artboardRgb(): [number, number, number] {
+  try {
+    const v = getComputedStyle(document.documentElement).getPropertyValue("--artboard").trim();
+    const m = v.match(/^#([0-9a-f]{6})$/i);
+    if (m) { const n = parseInt(m[1]!, 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255]; }
+  } catch { /* use the default */ }
+  return [220, 220, 219];
+}
+
+/**
+ * The concept image with its white background turned artboard grey and its colours untouched
+ * (see artboard.ts). Falls back to the original until ready or if the canvas is unavailable.
+ */
+function useArtboardImage(src: string | null, enabled: boolean) {
+  const [out, setOut] = useState<string | null>(null);
+  useEffect(() => {
+    setOut(null);
+    if (!src || !enabled) return;
+    let live = true, url: string | null = null;
+    (async () => {
+      const bitmap = await createImageBitmap(await (await fetch(src)).blob());
+      const canvas = document.createElement("canvas");
+      canvas.width = bitmap.width;
+      canvas.height = bitmap.height;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return;
+      ctx.drawImage(bitmap, 0, 0);
+      bitmap.close();
+      const data = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      ctx.putImageData(new ImageData(new Uint8ClampedArray(whiteToArtboard(data.data, artboardRgb())), canvas.width, canvas.height), 0, 0);
+      const blob = await new Promise<Blob | null>((r) => canvas.toBlob(r, "image/png"));
+      if (!blob || !live) return;
+      url = URL.createObjectURL(blob);
+      setOut(url);
+    })().catch(() => {});
+    return () => { live = false; if (url) URL.revokeObjectURL(url); };
+  }, [src, enabled]);
+  return out ?? src;
+}
 
 /** Notes: non-blocking boxes a shown concept didn't tick. */
 export function noteCount(c: ConceptState, checks: CheckDef[]) {
@@ -65,6 +107,7 @@ export function ConceptTile({ concept, checks, onPick, compact, selected, label 
   const shown = concept.stage === "passed" || (failed && reveal && Boolean(concept.image));
   const passed = shown;
   const notes = noteCount(concept, checks);
+  const display = useArtboardImage(concept.image, shown);
   const working = !passed && !failed;
   const done = concept.results.filter((r) => r.pass).length;
   const name = label ?? `Concept ${concept.index + 1}`;
@@ -83,7 +126,7 @@ export function ConceptTile({ concept, checks, onPick, compact, selected, label 
         )}
       >
         {concept.image && (!failed || shown) && (
-          <img src={concept.image} alt={passed ? `Logo ${name.toLowerCase()}` : ""} className={cn("h-full w-full object-contain transition-[filter,opacity,transform] duration-700", passed && "mix-blend-multiply", working && "scale-110 opacity-45 blur-2xl")} />
+          <img src={shown ? (display ?? concept.image) : concept.image} alt={passed ? `Logo ${name.toLowerCase()}` : ""} className={cn("h-full w-full object-contain transition-[filter,opacity,transform] duration-700", working && "scale-110 opacity-45 blur-2xl")} />
         )}
         {working && (
           <span className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-black/30 text-center">
