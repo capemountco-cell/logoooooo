@@ -97,7 +97,7 @@ export function BatchLogoTask({
           (frame || preview) && <img src={frame || preview} alt={job.file.name} className={`h-full w-full object-contain ${running ? "opacity-70 blur-[6px]" : ""}`} />
         )}
         {running && (
-          <span className="absolute rounded-[10px] border border-border bg-card px-3 py-2 text-[13px] text-subtle shadow-[0_6px_18px_rgba(17,17,17,0.08)]">
+          <span className="absolute rounded-[10px] border border-border bg-card px-3 py-2 text-[13px] text-subtle shadow-[0_6px_18px_rgba(0,0,0,0.08)]">
             {job.options?.mode === "trace" ? "Tracing…" : "Redrawing…"}
           </span>
         )}
@@ -128,7 +128,7 @@ export function BatchLogoTask({
         </div>
         <p className="-mt-1.5 font-mono text-[10px] uppercase text-muted-foreground">{label}</p>
         {running && (
-          <div role="progressbar" aria-label={`${job.file.name} progress`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(progress)} className="h-1 overflow-hidden rounded-full bg-[#EDEDEA]">
+          <div role="progressbar" aria-label={`${job.file.name} progress`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(progress)} className="h-1 overflow-hidden rounded-full bg-muted">
             <div className="h-full bg-foreground transition-[width] motion-reduce:transition-none" style={{ width: `${progress}%` }} />
           </div>
         )}

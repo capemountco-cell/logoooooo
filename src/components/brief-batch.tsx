@@ -47,7 +47,7 @@ export function BriefBatch({ onOpen }: { onOpen: (c: ConceptState, brief: LogoBr
 
   return (
     <main className="flex flex-1 flex-col items-center gap-6 px-4 pt-4 pb-16 sm:px-7 sm:pt-8">
-      <section aria-label="Add briefs" className="flex w-full max-w-[920px] flex-col gap-3 rounded-[22px] border border-border bg-card p-3.5 shadow-[0_1px_2px_rgba(17,17,17,0.04),0_18px_48px_rgba(17,17,17,0.07)]">
+      <section aria-label="Add briefs" className="flex w-full max-w-[920px] flex-col gap-3 rounded-[22px] border border-border bg-card p-3.5 shadow-[0_1px_2px_rgba(0,0,0,0.04),0_18px_48px_rgba(0,0,0,0.07)]">
         <label className="flex flex-col">
           <span className="sr-only">Briefs, one per paragraph</span>
           <textarea
@@ -55,7 +55,7 @@ export function BriefBatch({ onOpen }: { onOpen: (c: ConceptState, brief: LogoBr
             onChange={(e) => setText(e.target.value)}
             rows={6}
             placeholder={"Paste several briefs — one per paragraph, or numbered.\n\nEmber — cosy modern coffee shop, warm colours\n\nStill Water yoga studio, calm, minimal, a wave\n\nHart & Lowe, family law firm, trustworthy, navy"}
-            className="min-h-[160px] w-full resize-y rounded-[14px] bg-[#FAFAF8] px-4 py-3.5 text-base leading-relaxed outline-none placeholder:text-muted-foreground focus:bg-white"
+            className="min-h-[160px] w-full resize-y rounded-[14px] bg-field px-4 py-3.5 text-base leading-relaxed outline-none placeholder:text-muted-foreground focus:bg-field-focus"
           />
         </label>
         <div className="flex flex-wrap items-center justify-between gap-3">

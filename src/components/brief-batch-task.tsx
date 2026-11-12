@@ -105,7 +105,7 @@ export function BriefBatchTask({
           ))}
         </div>
       ) : (
-        <p className="line-clamp-3 rounded-xl bg-[#F7F7F5] p-3 text-[13px] text-subtle">{notes}</p>
+        <p className="line-clamp-3 rounded-xl bg-field p-3 text-[13px] text-subtle">{notes}</p>
       )}
 
       {(job.error || error) && (

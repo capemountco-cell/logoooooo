@@ -41,7 +41,7 @@ export function SettingsSheet() {
   return (
     <Sheet>
       <SheetTrigger asChild>
-        <button type="button" aria-label="Settings" className="inline-flex h-11 w-11 items-center justify-center rounded-xl border border-border bg-card">
+        <button type="button" aria-label="Settings" className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-border text-muted-foreground hover:text-foreground">
           <Settings className="h-[18px] w-[18px]" aria-hidden="true" />
         </button>
       </SheetTrigger>

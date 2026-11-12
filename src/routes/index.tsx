@@ -15,9 +15,9 @@ import { cn } from "@/lib/utils";
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "Vectorthis — AI logo generator with clean vector files" },
-      { name: "description", content: "Describe your brand and get four checked logo concepts, ready as SVG, Illustrator (.ai) and PNG." },
-      { property: "og:title", content: "Vectorthis — AI logo generator with clean vector files" },
+      { title: "LOGOO — logo concepts from a brief" },
+      { name: "description", content: "Write or paste a brief and get four checked logo concepts, ready as SVG, Illustrator (.ai) and PNG." },
+      { property: "og:title", content: "LOGOO — logo concepts from a brief" },
       { property: "og:description", content: "Describe your brand and get four checked logo concepts, ready as SVG, Illustrator and PNG." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },

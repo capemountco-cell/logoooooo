@@ -14,23 +14,24 @@ function Field({ label, children, wide }: { label: string; children: React.React
   );
 }
 
-const input = "h-11 rounded-xl border border-border bg-[#FAFAF8] px-3.5 text-[15px] outline-none focus:border-foreground focus:bg-white";
+const input = "h-11 rounded-xl border border-border bg-field px-3.5 text-[15px] outline-none focus:border-foreground focus:bg-field-focus";
 
 /** The cleaned-up brief, every field editable, with the logo type the AI picked (and why). */
 export function BriefCard({
-  brief, references, onChange, onGenerate, onBack,
+  brief, references, onChange, onGenerate, onBack, backLabel = "Edit notes",
 }: {
   brief: LogoBrief;
   references: ReferenceNote[];
   onChange: (b: LogoBrief) => void;
   onGenerate: () => void;
   onBack: () => void;
+  backLabel?: string;
 }) {
   const set = (patch: Partial<LogoBrief>) => onChange({ ...brief, ...patch });
   const recommended = new Set([brief.logoType, ...brief.alternativeTypes]);
   const needsName = !brief.brandName.trim();
   return (
-    <section aria-label="Your brief" className="flex w-full max-w-[720px] flex-col gap-5 rounded-[22px] border border-border bg-card p-5 shadow-[0_1px_2px_rgba(17,17,17,0.04),0_18px_48px_rgba(17,17,17,0.07)]">
+    <section aria-label="Your brief" className="flex w-full max-w-[720px] flex-col gap-5 rounded-[24px] border border-border bg-card p-5">
       <div className="flex items-start justify-between gap-3">
         <div>
           <h2 className="text-lg font-semibold tracking-[-0.01em]">Your brief</h2>
@@ -38,13 +39,13 @@ export function BriefCard({
         </div>
         <button type="button" onClick={onBack} className="inline-flex h-10 items-center gap-1.5 rounded-xl px-2.5 text-sm font-medium text-subtle hover:text-foreground">
           <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-          Edit notes
+          {backLabel}
         </button>
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2">
         <Field label="Brand name (spelled exactly)">
-          <input value={brief.brandName} onChange={(e) => set({ brandName: e.target.value })} placeholder="Required for lettering" className={cn(input, needsName && "border-amber-400")} />
+          <input value={brief.brandName} onChange={(e) => set({ brandName: e.target.value })} placeholder="Required for lettering" className={cn(input, needsName && "border-pending")} />
         </Field>
         <Field label="Tagline (optional)">
           <input value={brief.tagline} onChange={(e) => set({ tagline: e.target.value })} placeholder="None" className={input} />
@@ -63,8 +64,8 @@ export function BriefCard({
               onClick={() => set({ logoType: t.id })}
               title={t.rule}
               className={cn(
-                "inline-flex h-10 items-center gap-1.5 rounded-xl border px-3 text-[13px] font-medium",
-                brief.logoType === t.id ? "border-foreground bg-foreground text-background" : recommended.has(t.id) ? "border-foreground/40 bg-card" : "border-border bg-card text-subtle",
+                "inline-flex h-10 items-center gap-1.5 rounded-full border px-3.5 text-[13px] font-medium",
+                brief.logoType === t.id ? "border-foreground bg-foreground text-background" : recommended.has(t.id) ? "border-foreground/40 bg-transparent" : "border-border bg-transparent text-subtle",
               )}
             >
               {t.label}
@@ -81,7 +82,7 @@ export function BriefCard({
 
       <div className="grid gap-4 sm:grid-cols-2">
         <Field label="What it should say about the brand" wide>
-          <textarea value={brief.summary} onChange={(e) => set({ summary: e.target.value })} rows={2} className="resize-none rounded-xl border border-border bg-[#FAFAF8] px-3.5 py-2.5 text-[15px] outline-none focus:border-foreground focus:bg-white" />
+          <textarea value={brief.summary} onChange={(e) => set({ summary: e.target.value })} rows={2} className="resize-none rounded-xl border border-border bg-field px-3.5 py-2.5 text-[15px] outline-none focus:border-foreground focus:bg-field-focus" />
         </Field>
         <Field label="Personality">
           <input value={csv(brief.personality)} onChange={(e) => set({ personality: fromCsv(e.target.value) })} placeholder="e.g. warm, modern" className={input} />
@@ -104,7 +105,7 @@ export function BriefCard({
       </div>
 
       {references.length > 0 && (
-        <div className="flex flex-col gap-1.5 rounded-xl bg-[#F7F7F5] p-3">
+        <div className="flex flex-col gap-1.5 rounded-xl bg-field p-3">
           <span className="text-xs font-semibold text-subtle">From your references</span>
           {references.map((r, i) => (
             <p key={i} className="text-[13px] text-subtle">
@@ -115,7 +116,7 @@ export function BriefCard({
       )}
 
       {needsName && (
-        <p className="flex items-center gap-2 rounded-xl bg-amber-50 px-3 py-2.5 text-[13px] text-amber-900">
+        <p className="flex items-center gap-2 rounded-xl bg-warn-bg px-3 py-2.5 text-[13px] text-warn">
           <TriangleAlert className="h-4 w-4 shrink-0" aria-hidden="true" />
           No brand name found. Add one, or pick a symbol-only type (Pictorial or Abstract).
         </p>
@@ -125,10 +126,10 @@ export function BriefCard({
         type="button"
         onClick={onGenerate}
         disabled={needsName && !["pictorial", "abstract"].includes(brief.logoType)}
-        className="inline-flex h-[50px] items-center justify-center gap-2 rounded-[13px] bg-primary text-[15px] font-semibold text-primary-foreground disabled:opacity-40"
+        className="inline-flex h-[50px] items-center justify-center gap-2 rounded-full bg-primary text-[15px] font-semibold text-primary-foreground disabled:opacity-40"
       >
         <Sparkles className="h-4 w-4" aria-hidden="true" />
-        Generate 4 logos
+        Generate 4 concepts
       </button>
       <p className="-mt-2 text-center text-xs text-muted-foreground">2 from OpenAI, 2 from Grok. Each one is checked and fixed before you see it.</p>
     </section>

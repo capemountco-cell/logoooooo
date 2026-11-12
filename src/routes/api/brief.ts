@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { BRIEF_INSTRUCTIONS, BRIEF_SCHEMA, briefInput, MAX_REFERENCES, normalizeBrief, referenceInstructions, REFERENCE_ROLE_IDS, type ReferenceNote, type ReferenceRole } from "@/lib/brief";
+import { cleanPastedBrief } from "@/lib/clean-paste";
 import { errorResponse, fileToDataUrl, isFile, openaiJson, openaiText } from "@/lib/openai-text.server";
 
 // Messy notes (+ reference images with a role each) → a clean, structured logo brief.
@@ -9,7 +10,8 @@ export const Route = createFileRoute("/api/brief")({
     handlers: {
       POST: async ({ request }) => {
         const form = await request.formData();
-        const notes = String(form.get("notes") ?? "").trim();
+        // Pasted web pages lose their menus, footers, links and legal text before the AI reads them.
+        const notes = cleanPastedBrief(String(form.get("notes") ?? "").slice(0, 60_000)).text;
         if (notes.length < 2) return new Response("Describe the logo you need first.", { status: 400 });
         const refs: { role: ReferenceRole; file: File | null; palette: string }[] = [];
         for (let i = 0; i < MAX_REFERENCES; i++) {

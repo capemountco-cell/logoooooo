@@ -20,6 +20,8 @@
 - [x] Logo generation from a brief: messy notes cleaned into a structured brief (gpt-5-nano), 9 logo types with Combination mark default, role-based references (typography/style/colour/layout/concept/mood) passed as text only.
 - [x] Four concepts per brief (2 OpenAI, 2 Grok) with a self-check hand-off: code checks + AI review, failed boxes fixed and rechecked, fresh redraw if needed; only fully passing concepts are shown.
 - [x] Lightweight UI (Create · Batch · Import, settings sheet) and batch briefs that each run independently with SVG/AI/PNG saves and Download all.
+- [x] Paste a brief straight from a web page: menus, footers, links, cookie/legal text and repeats are stripped before the AI reads it.
+- [x] All-black, concepts-first redesign with the LOGOO wordmark: Generate concepts in one step, rounds that stack, artwork-first tiles with collapsible checks.
 - [ ] Live-test generation with real OpenAI and xAI keys; tune check thresholds and prompts on real outputs.
 - [ ] Brand identity package (palette, type pairing, logo versions, favicon, social) behind its setting.
 - [ ] Mockups behind their setting.

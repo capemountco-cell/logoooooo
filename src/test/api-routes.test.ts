@@ -56,6 +56,17 @@ describe("/api/brief", () => {
     expect(json.references[1]).toEqual({ role: "colour", description: "Use this palette: #c2410c, #1f2937." });
   });
 
+  it("strips pasted web-page clutter before the brief model reads it", async () => {
+    mockFetch(() => responses(brief));
+    const form = new FormData();
+    form.append("notes", "Skip to content\nHome\nServices\nPortfolio\nContact\nLogo for Fernwood Bakery, a sourdough bakery in Leeds.\nPrivacy Policy\n© 2026 Example Ltd. All rights reserved.\nhttps://example.com");
+    await post(BriefRoute)({ request: request("/api/brief", form) });
+    const sent = JSON.stringify((calls[0]!.body as { input: unknown }).input);
+    expect(sent).toContain("Logo for Fernwood Bakery, a sourdough bakery in Leeds.");
+    for (const junk of ["Skip to content", "Portfolio", "Privacy Policy", "All rights reserved", "https://example.com"]) expect(sent).not.toContain(junk);
+    expect(String((calls[0]!.body as { instructions: string }).instructions)).toContain("PASTED PAGES");
+  });
+
   it("rejects an empty brief and passes rate limits through for retry", async () => {
     const empty = new FormData();
     empty.append("notes", "");

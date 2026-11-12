@@ -39,7 +39,7 @@ type PngBack = "transparent" | "white" | "brand";
 
 function Stat({ label, value, extra }: { label: string; value: string | number; extra?: string | undefined }) {
   return (
-    <div className="rounded-xl bg-[#F7F7F5] px-3 py-2.5">
+    <div className="rounded-xl bg-field px-3 py-2.5">
       <dt className="font-mono text-[10.5px] tracking-[0.04em] text-muted-foreground">{label}</dt>
       <dd className="mt-1 text-lg font-semibold">
         {value}
@@ -236,7 +236,7 @@ export function ResultWorkspace({ result, versions, onPickVersion, onNew, onReru
                       ))}
                     </div>
                     <div className="flex flex-1 items-center gap-2">
-                      <div aria-hidden="true" className="h-1.5 flex-1 overflow-hidden rounded-full bg-[#EDEDEA]">
+                      <div aria-hidden="true" className="h-1.5 flex-1 overflow-hidden rounded-full bg-muted">
                         <div className="h-full bg-foreground" style={{ width: `${result.advice.score}%` }} />
                       </div>
                       <span className="font-mono text-[11px] text-muted-foreground" title="How much is lost in black & white">{result.advice.score}/100</span>
@@ -272,7 +272,7 @@ export function ResultWorkspace({ result, versions, onPickVersion, onNew, onReru
                     {result.accuracy.kind === "pixel" ? "pixel match with your file" : result.accuracy.kind === "color" ? "colour match with your file" : "match with your original"}
                   </span>
                 </div>
-                <div aria-hidden="true" className="h-1.5 overflow-hidden rounded-full bg-[#EDEDEA]">
+                <div aria-hidden="true" className="h-1.5 overflow-hidden rounded-full bg-muted">
                   <div className={cn("h-full", drifted ? "bg-warn" : "bg-foreground")} style={{ width: pct(result.accuracy.value) }} />
                 </div>
                 {drifted && (
@@ -315,7 +315,7 @@ export function ResultWorkspace({ result, versions, onPickVersion, onNew, onReru
                       onClick={() => v.src && onPickVersion(v.src)}
                       className="flex w-full flex-col items-center gap-1 rounded-xl border border-border p-1.5 text-[11px] disabled:opacity-60"
                     >
-                      <span className="flex aspect-square w-full items-center justify-center overflow-hidden rounded-lg bg-[#F7F7F5]">
+                      <span className="flex aspect-square w-full items-center justify-center overflow-hidden rounded-lg bg-field">
                         {v.src ? <img src={v.src} alt={`${v.name} version`} className="max-h-full max-w-full object-contain" /> : <span className="px-1 text-center text-muted-foreground">{v.err ? "Failed" : "Working…"}</span>}
                       </span>
                       <span className="font-semibold">{v.name}</span>

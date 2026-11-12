@@ -68,55 +68,69 @@
   --color-warn: var(--warn);
   --color-warn-bg: var(--warn-bg);
   --color-warn-border: var(--warn-border);
+  --color-field: var(--field);
+  --color-field-focus: var(--field-focus);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-success: var(--success);
+  --color-pending: var(--pending);
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
 }
 
 :root {
-  /* Vectorthis: warm paper, ink black, one blue accent for outlines and focus. */
+  /* LOGOO: an all-black studio. White type and controls; logo artwork sits on its own light artboard. */
+  color-scheme: dark;
   --radius: 0.75rem;
-  --background: oklch(0.972 0.002 106.4);
-  --foreground: oklch(0.178 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.178 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.178 0 0);
-  --primary: oklch(0.178 0 0);
-  --primary-foreground: oklch(1 0 0);
-  --secondary: oklch(0.959 0.003 106.4);
-  --secondary-foreground: oklch(0.178 0 0);
-  --muted: oklch(0.959 0.003 106.4);
-  --muted-foreground: oklch(0.52 0.006 106.4);
-  --accent: oklch(0.959 0.003 106.4);
-  --accent-foreground: oklch(0.178 0 0);
-  --destructive: oklch(0.54 0.16 45);
-  --destructive-foreground: oklch(1 0 0);
-  --border: oklch(0.922 0.003 106.4);
-  --input: oklch(0.922 0.003 106.4);
-  --ring: oklch(0.585 0.215 262);
-  --subtle: oklch(0.355 0.005 106.4);
-  --dot: oklch(0.88 0.004 106.4);
-  --blue: oklch(0.585 0.215 262);
+  --background: oklch(0 0 0);
+  --foreground: oklch(0.97 0 0);
+  --card: oklch(0.145 0 0);
+  --card-foreground: oklch(0.97 0 0);
+  --popover: oklch(0.17 0 0);
+  --popover-foreground: oklch(0.97 0 0);
+  --primary: oklch(0.97 0 0);
+  --primary-foreground: oklch(0.1 0 0);
+  --secondary: oklch(0.21 0 0);
+  --secondary-foreground: oklch(0.97 0 0);
+  --muted: oklch(0.21 0 0);
+  --muted-foreground: oklch(0.63 0 0);
+  --accent: oklch(0.24 0 0);
+  --accent-foreground: oklch(0.97 0 0);
+  --destructive: oklch(0.7 0.17 30);
+  --destructive-foreground: oklch(0.1 0 0);
+  --border: oklch(1 0 0 / 11%);
+  --input: oklch(1 0 0 / 14%);
+  --ring: oklch(0.7 0.15 262);
+  --subtle: oklch(0.8 0 0);
+  --dot: oklch(0.19 0 0);
+  --blue: oklch(0.7 0.15 262);
+  /* Text fields and dashed drop targets on black. */
+  --field: oklch(0.185 0 0);
+  --field-focus: oklch(0.22 0 0);
+  --line: oklch(0.34 0 0);
+  --line-strong: oklch(0.5 0 0);
+  --success: oklch(0.78 0.15 155);
+  --pending: oklch(0.82 0.13 80);
   /* Outlines view: solid paper, pale logo fill, dashed dark-green outline (user's reference). */
   --outline-paper: #f6f4f0;
   --outline-fill: #e1e1df;
   --outline-ink: #143f20;
-  --warn: oklch(0.44 0.13 40);
-  --warn-bg: oklch(0.98 0.012 60);
-  --warn-border: oklch(0.86 0.06 50);
+  --warn: oklch(0.88 0.1 75);
+  --warn-bg: oklch(0.25 0.05 70);
+  --warn-border: oklch(0.4 0.08 70);
   --chart-1: oklch(0.646 0.222 41.116);
   --chart-2: oklch(0.6 0.118 184.704);
   --chart-3: oklch(0.398 0.07 227.392);
   --chart-4: oklch(0.828 0.189 84.429);
   --chart-5: oklch(0.769 0.188 70.08);
-  --sidebar: oklch(0.984 0.003 247.858);
-  --sidebar-foreground: oklch(0.129 0.042 264.695);
-  --sidebar-primary: oklch(0.208 0.042 265.755);
-  --sidebar-primary-foreground: oklch(0.984 0.003 247.858);
-  --sidebar-accent: oklch(0.968 0.007 247.896);
-  --sidebar-accent-foreground: oklch(0.208 0.042 265.755);
-  --sidebar-border: oklch(0.929 0.013 255.508);
-  --sidebar-ring: oklch(0.704 0.04 256.788);
+  --sidebar: oklch(0.145 0 0);
+  --sidebar-foreground: oklch(0.97 0 0);
+  --sidebar-primary: oklch(0.97 0 0);
+  --sidebar-primary-foreground: oklch(0.1 0 0);
+  --sidebar-accent: oklch(0.21 0 0);
+  --sidebar-accent-foreground: oklch(0.97 0 0);
+  --sidebar-border: oklch(1 0 0 / 11%);
+  --sidebar-ring: oklch(0.7 0.15 262);
 }
 
 .dark {
@@ -172,11 +186,9 @@
   }
 }
 
-/* Dotted workspace ground used on every canvas surface. */
+/* App ground: plain black (the dotted grid stays on the light logo artboard only). */
 .bg-dots {
   background-color: var(--color-background);
-  background-image: radial-gradient(var(--color-dot) 1px, transparent 1px);
-  background-size: 20px 20px;
 }
 
 .bg-dots-light {
@@ -185,8 +197,9 @@
   background-size: 18px 18px;
 }
 
+/* Transparency checkerboard: always light, like every design tool, so logos read as they will print. */
 .checker {
-  background-color: var(--color-background);
-  background-image: conic-gradient(var(--color-muted) 25%, transparent 0 50%, var(--color-muted) 0 75%, transparent 0);
+  background-color: #ffffff;
+  background-image: conic-gradient(#ececec 25%, transparent 0 50%, #ececec 0 75%, transparent 0);
   background-size: 20px 20px;
 }

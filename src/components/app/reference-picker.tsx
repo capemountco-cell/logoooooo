@@ -63,7 +63,7 @@ export function ReferencePicker({ refs, onChange, disabled }: { refs: PreparedRe
               {...drop.handlers}
               className={cn(
                 "inline-flex h-[52px] cursor-pointer items-center gap-2 rounded-xl border-[1.5px] border-dashed px-3.5 text-[13px] font-medium text-subtle",
-                drop.dragging ? "border-blue bg-[#F4F7FF]" : "border-[#D4D4D0] hover:border-[#BDBDB8]",
+                drop.dragging ? "border-blue bg-blue/10" : "border-line hover:border-line-strong",
                 disabled && "pointer-events-none opacity-50",
               )}
             >

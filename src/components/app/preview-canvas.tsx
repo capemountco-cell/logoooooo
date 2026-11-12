@@ -130,7 +130,7 @@ export function PreviewCanvas({
   return (
     <div className={cn("relative flex min-h-[340px] flex-1 flex-col overflow-hidden rounded-[18px] border border-border sm:min-h-[600px]", view === "code" ? "bg-card" : view === "outlines" ? "bg-outline-paper" : backClass(back))}>
       <div className="absolute inset-x-3 top-3 z-10 flex flex-wrap items-start justify-between gap-2">
-        <div role="tablist" aria-label="View" className="flex gap-0.5 rounded-xl border border-border bg-card p-[3px] shadow-[0_2px_8px_rgba(17,17,17,0.06)]">
+        <div role="tablist" aria-label="View" className="flex gap-0.5 rounded-xl border border-border bg-card p-[3px] shadow-[0_2px_8px_rgba(0,0,0,0.06)]">
           {views.map((t) => (
             <button
               key={t.id}
@@ -149,7 +149,7 @@ export function PreviewCanvas({
         </div>
         {(view === "artwork" || view === "outlines") && (
           <div className="flex gap-2">
-            <div className="hidden items-center gap-0.5 rounded-xl border border-border bg-card p-[3px] shadow-[0_2px_8px_rgba(17,17,17,0.06)] sm:flex">
+            <div className="hidden items-center gap-0.5 rounded-xl border border-border bg-card p-[3px] shadow-[0_2px_8px_rgba(0,0,0,0.06)] sm:flex">
               <button type="button" aria-label="Zoom out" disabled={zi <= 0} onClick={() => setZoom(ZOOMS[Math.max(0, zi - 1)]!)} className="inline-flex h-[34px] w-[34px] items-center justify-center rounded-[9px] disabled:opacity-30">
                 <Minus className="h-4 w-4" aria-hidden="true" />
               </button>
@@ -164,7 +164,7 @@ export function PreviewCanvas({
                 aria-pressed={points}
                 onClick={() => setPoints((p) => !p)}
                 className={cn(
-                  "h-[40px] rounded-xl border border-border px-3 text-[13px] font-medium shadow-[0_2px_8px_rgba(17,17,17,0.06)]",
+                  "h-[40px] rounded-xl border border-border px-3 text-[13px] font-medium shadow-[0_2px_8px_rgba(0,0,0,0.06)]",
                   points ? "bg-foreground text-primary-foreground" : "bg-card text-subtle hover:text-foreground",
                 )}
               >
@@ -172,7 +172,7 @@ export function PreviewCanvas({
               </button>
             )}
             {view === "artwork" && (
-              <div role="radiogroup" aria-label="Canvas background" className="hidden items-center sm:flex gap-1 rounded-xl border border-border bg-card px-[5px] py-[3px] shadow-[0_2px_8px_rgba(17,17,17,0.06)]">
+              <div role="radiogroup" aria-label="Canvas background" className="hidden items-center sm:flex gap-1 rounded-xl border border-border bg-card px-[5px] py-[3px] shadow-[0_2px_8px_rgba(0,0,0,0.06)]">
                 {BACKS.map((b) => (
                   <button
                     key={b.id}
@@ -183,7 +183,7 @@ export function PreviewCanvas({
                     onClick={() => onBack(b.id)}
                     className="inline-flex h-[34px] w-[30px] items-center justify-center"
                   >
-                    <span className={cn("h-6 w-6 rounded-full", back === b.id ? "ring-2 ring-blue" : "border border-[#D4D4D0]")} style={{ background: b.swatch }} />
+                    <span className={cn("h-6 w-6 rounded-full", back === b.id ? "ring-2 ring-blue" : "border border-line")} style={{ background: b.swatch }} />
                   </button>
                 ))}
               </div>
@@ -199,7 +199,7 @@ export function PreviewCanvas({
               <figure className="m-0 flex flex-col items-center gap-2">
                 <div
                   className={cn(
-                    "relative w-[min(560px,78vw)] overflow-hidden rounded-[4px] shadow-[0_0_0_1px_rgba(17,17,17,0.12),0_12px_32px_rgba(17,17,17,0.08)]",
+                    "relative w-[min(560px,78vw)] overflow-hidden rounded-[4px] shadow-[0_0_0_1px_rgba(0,0,0,0.12),0_12px_32px_rgba(0,0,0,0.08)]",
                     boardFill === "transparent" ? "checker" : boardFill === "white" ? "bg-white" : "",
                   )}
                   style={{ aspectRatio: `${BOARD.width} / ${BOARD.height}`, ...(boardFill.startsWith("#") ? { background: boardFill } : {}) }}
@@ -242,7 +242,7 @@ export function PreviewCanvas({
             <Copy className="h-3.5 w-3.5" aria-hidden="true" />
             {copied ? "Copied" : "Copy"}
           </button>
-          <pre className="max-h-[70vh] flex-1 overflow-auto whitespace-pre-wrap break-all rounded-xl bg-foreground p-5 pr-24 font-mono text-[12.5px] leading-relaxed text-[#E8E8E4]">{board ? result.board.svg : result.svg}</pre>
+          <pre className="max-h-[70vh] flex-1 overflow-auto whitespace-pre-wrap break-all rounded-xl border border-border bg-field p-5 pr-24 font-mono text-[12.5px] leading-relaxed text-subtle">{board ? result.board.svg : result.svg}</pre>
         </div>
       )}
     </div>

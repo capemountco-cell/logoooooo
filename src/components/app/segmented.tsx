@@ -50,7 +50,7 @@ export function Segmented<T extends string>({
             className={cn(
               "inline-flex items-center justify-center whitespace-nowrap rounded-[9px] border px-2 font-medium transition-colors disabled:opacity-50",
               size === "sm" ? "h-8 text-[13px]" : "h-10 text-sm",
-              on ? "border-border bg-card text-foreground shadow-[0_1px_3px_rgba(17,17,17,0.08)]" : "border-transparent text-subtle hover:text-foreground",
+              on ? "border-border bg-card text-foreground shadow-[0_1px_3px_rgba(0,0,0,0.08)]" : "border-transparent text-subtle hover:text-foreground",
             )}
           >
             {o.label}
