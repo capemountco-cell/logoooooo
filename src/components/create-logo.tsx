@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { loadSaved, saveSoon } from "@/lib/persist";
 import { Images, Pencil, Plus, RotateCcw, Square } from "lucide-react";
 import { BriefComposer } from "@/components/app/brief-composer";
 import { BriefCard } from "@/components/app/brief-card";
@@ -15,8 +16,17 @@ import { roundSize } from "@/components/app/settings-sheet";
  * earlier rounds stay. The brief can be reviewed before or edited after generating.
  */
 export function CreateLogo({ onOpen }: { onOpen: (c: ConceptState, brief: LogoBrief) => void }) {
-  const job = useBriefJob();
+  const job = useBriefJob("create:job");
   const [notes, setNotes] = useState("");
+  // The brief text is autosaved on this device too, so a crash never loses what was typed.
+  const [notesReady, setNotesReady] = useState(false);
+  useEffect(() => {
+    void loadSaved<string>("create:notes").then((saved) => {
+      if (typeof saved === "string") setNotes((n) => n || saved);
+      setNotesReady(true);
+    });
+  }, []);
+  useEffect(() => { if (notesReady) saveSoon("create:notes", notes); }, [notes, notesReady]);
   const [refs, setRefs] = useState<PreparedRef[]>([]);
   const [reviewing, setReviewing] = useState(false);
   const studio = job.rounds.length > 0 && (job.phase === "generating" || job.phase === "done");

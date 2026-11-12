@@ -15,14 +15,15 @@ export type BatchBriefFiles = { svgFile: File; aiFile: File; pngFile: File };
  * starts by itself and never waits on, or touches, any other card.
  */
 export function BriefBatchTask({
-  notes, onRemove, onReady, onOpen,
+  id, notes, onRemove, onReady, onOpen,
 }: {
+  id: string;
   notes: string;
   onRemove: () => void;
   onReady: (files: BatchBriefFiles | null) => void;
   onOpen: (c: ConceptState, brief: LogoBrief) => void;
 }) {
-  const job = useBriefJob();
+  const job = useBriefJob(`batch:job:${id}`);
   const [selected, setSelected] = useState<number | null>(null);
   const [files, setFiles] = useState<BatchBriefFiles | null>(null);
   const [preparing, setPreparing] = useState(false);
@@ -33,13 +34,15 @@ export function BriefBatchTask({
     const out = await job.makeBrief(notes, []);
     if (out) await job.generate(out);
   }
-  // Starts on mount; the notes are this card's snapshot. Cleanup cancels, so a remount (React
-  // strict mode in development) starts cleanly instead of leaving an aborted request behind.
+  // Starts once saved work has been checked: a card restored after a reload or crash shows its
+  // saved results and never starts again by itself. Cleanup cancels, so a remount (React strict
+  // mode in development) starts cleanly instead of leaving an aborted request behind.
   useEffect(() => {
+    if (!job.ready || job.restored) return;
     void start();
     return job.cancel;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [job.ready, job.restored]);
 
   // The first concept to pass is chosen automatically; tapping another switches.
   const passed = job.concepts.filter((c) => c.stage === "passed");

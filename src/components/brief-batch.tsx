@@ -1,4 +1,5 @@
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import { loadSaved, removeSaved, saveSoon } from "@/lib/persist";
 import { ClipboardList, Download, Files, Plus, Sparkles } from "lucide-react";
 import { BriefDraft, type Draft } from "@/components/brief-draft";
 import { BRIEF_FILE_ACCEPT } from "@/lib/brief-extract";
@@ -24,6 +25,17 @@ export function BriefBatch({ onOpen }: { onOpen: (c: ConceptState, brief: LogoBr
   const [pasting, setPasting] = useState(false);
   const [text, setText] = useState("");
   const [tasks, setTasks] = useState<Task[]>([]);
+  // Brief cards and started jobs are autosaved on this device (each job saves its own results).
+  const [restoring, setRestoring] = useState(true);
+  useEffect(() => {
+    void Promise.all([loadSaved<{ id: string; notes: string }[]>("batch:drafts"), loadSaved<Task[]>("batch:tasks")]).then(([d, t]) => {
+      if (Array.isArray(d) && d.some((x) => x.notes?.trim())) setDrafts(d.map((x) => ({ id: x.id, notes: x.notes })));
+      if (Array.isArray(t)) setTasks((cur) => (cur.length ? cur : t));
+      setRestoring(false);
+    });
+  }, []);
+  useEffect(() => { if (!restoring) saveSoon("batch:drafts", drafts.map((d) => ({ id: d.id, notes: d.notes }))); }, [drafts, restoring]);
+  useEffect(() => { if (!restoring) saveSoon("batch:tasks", tasks); }, [tasks, restoring]);
   const [ready, setReady] = useState<Record<string, BatchBriefFiles>>({});
   const [format, setFormat] = useState<Format>("svg");
   const [saveError, setSaveError] = useState("");
@@ -169,7 +181,8 @@ export function BriefBatch({ onOpen }: { onOpen: (c: ConceptState, brief: LogoBr
               <BriefBatchTask
                 key={t.id}
                 notes={t.notes}
-                onRemove={() => { setTasks((all) => all.filter((x) => x.id !== t.id)); markReady(t.id, null); }}
+                id={t.id}
+                onRemove={() => { setTasks((all) => all.filter((x) => x.id !== t.id)); markReady(t.id, null); void removeSaved(`batch:job:${t.id}`); }}
                 onReady={(f) => markReady(t.id, f)}
                 onOpen={onOpen}
               />
