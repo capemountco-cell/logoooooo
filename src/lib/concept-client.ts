@@ -2,7 +2,7 @@
 // Every job passes its own inputs and signal in; nothing here is shared between jobs.
 import type { LogoBrief, ReferenceNote, ReferenceRole } from "@/lib/brief";
 import { normalizeBrief } from "@/lib/brief";
-import { autoChecks, measureConcept } from "@/lib/concept-checks";
+import { autoChecks, despeckle, measureConcept } from "@/lib/concept-checks";
 import { checklist, type CheckDef, type CheckResult } from "@/lib/concept-prompt";
 import type { ConceptDeps } from "@/lib/concept-pipeline";
 import { coverageSignature } from "@/lib/logo-fidelity";
@@ -106,8 +106,9 @@ export function conceptDeps(input: JobInput, checks: CheckDef[] = checklist(inpu
       return final;
     },
     auto: async (src) => {
+      // Compression noise is cleaned first (as it is before tracing), so it never fails a concept.
       const { width, height, rgba } = await imagePixels(src, 1024);
-      return autoChecks(measureConcept(rgba, width, height), input.brief, checks, input.signatures);
+      return autoChecks(measureConcept(despeckle(rgba, width, height).rgba, width, height), input.brief, checks, input.signatures);
     },
     review: async (src, signal): Promise<CheckResult[]> => {
       const form = new FormData();
@@ -219,4 +220,15 @@ export async function extractBrief(file: File, signal?: AbortSignal): Promise<{ 
   if (!res.ok) throw await failure(res, "Couldn't read that brief.");
   const { text } = (await res.json()) as { text: string };
   return { text, sections: parts.length };
+}
+
+/** A generated concept with its compression noise and stray specks removed (PNG data URL), for tracing. */
+export async function cleanConcept(src: string): Promise<string> {
+  const { canvas, width, height, rgba } = await imagePixels(src, 2048);
+  const { rgba: clean, removed } = despeckle(rgba, width, height);
+  if (!removed) return src;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return src;
+  ctx.putImageData(new ImageData(new Uint8ClampedArray(clean), width, height), 0, 0);
+  return canvas.toDataURL("image/png");
 }

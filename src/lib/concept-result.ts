@@ -4,6 +4,7 @@ import { toColorOutputs, toOutputs } from "@/lib/logo-convert";
 import { buildResult, type LogoResult } from "@/lib/result-model";
 import { baseName } from "@/components/app/modes";
 import type { Provider } from "@/lib/concept-prompt";
+import { cleanConcept } from "@/lib/concept-client";
 
 export type TracedConcept = { src: string; mono: LogoResult; color?: LogoResult; name: string; detail: string };
 
@@ -14,8 +15,10 @@ export function conceptName(brandName: string, index: number) {
 }
 
 /** Traces black & white, and colour too when the concept relies on colour (designed logos usually do). */
-export async function traceConcept(src: string, name: string, provider: Provider): Promise<TracedConcept> {
+export async function traceConcept(original: string, name: string, provider: Provider): Promise<TracedConcept> {
   const detail = `AI concept · ${PROVIDER[provider]}`;
+  // Specks and compression noise are removed first, so they never become stray paths.
+  const src = await cleanConcept(original);
   const o = await toOutputs(src);
   const mono = buildResult(o, { name, mode: "trace", accuracy: { kind: "pixel", value: o.accuracy }, original: src, detail });
   if (o.advice.recommend !== "color") return { src, mono, name, detail };

@@ -1,12 +1,17 @@
 import { useState } from "react";
-import { ArrowUpRight, Check, ChevronDown, Circle, Loader2, RotateCcw, X } from "lucide-react";
+import { ArrowUpRight, Check, ChevronDown, Circle, CircleAlert, Eye, Loader2, RotateCcw, X } from "lucide-react";
 import type { CheckDef } from "@/lib/concept-prompt";
 import type { ConceptState } from "@/lib/concept-pipeline";
 import { cn } from "@/lib/utils";
 
 const PROVIDER = { openai: "OpenAI", grok: "Grok" } as const;
 
-export function stageLabel(c: ConceptState, total: number) {
+/** Notes: non-blocking boxes a shown concept didn't tick. */
+export function noteCount(c: ConceptState, checks: CheckDef[]) {
+  return c.results.filter((r) => !r.pass && !checks.find((d) => d.id === r.id)?.blocking).length;
+}
+
+export function stageLabel(c: ConceptState, total: number, notes = 0) {
   const failed = c.results.filter((r) => !r.pass).length;
   switch (c.stage) {
     case "queued": return "Waiting";
@@ -15,7 +20,7 @@ export function stageLabel(c: ConceptState, total: number) {
     case "checking": return `Checking ${total} boxes`;
     case "fixing": return failed ? `Fixing ${failed} issue${failed === 1 ? "" : "s"}` : "Fixing";
     case "waiting": return c.note || "Retrying shortly";
-    case "passed": return `Passed ${total}/${total}`;
+    case "passed": return notes ? `Passed · ${notes} note${notes === 1 ? "" : "s"}` : `Passed ${total}/${total}`;
     case "failed": return c.note === "Stopped" ? "Stopped" : "Not shown";
   }
 }
@@ -32,12 +37,15 @@ function Checklist({ concept, checks }: { concept: ConceptState; checks: CheckDe
               <Circle className="h-3 w-3 shrink-0 text-line" aria-label="Not checked yet" />
             ) : r.pass ? (
               <Check className="h-3.5 w-3.5 shrink-0 text-success" aria-label="Passed" />
+            ) : !c.blocking ? (
+              <CircleAlert className="h-3.5 w-3.5 shrink-0 text-pending" aria-label="Note" />
             ) : failed ? (
               <X className="h-3.5 w-3.5 shrink-0 text-destructive" aria-label="Failed" />
             ) : (
               <RotateCcw className="h-3 w-3 shrink-0 text-pending" aria-label="Being fixed" />
             )}
             <span className="truncate">{c.label}</span>
+            {!c.blocking && r && !r.pass && <span className="shrink-0 text-[10.5px] text-muted-foreground">note</span>}
           </li>
         );
       })}
@@ -46,13 +54,17 @@ function Checklist({ concept, checks }: { concept: ConceptState; checks: CheckDe
 }
 
 /**
- * One concept. The artwork stays blurred until every box passes; a concept that never gets
- * there is not shown at all.
+ * One concept. The artwork stays blurred until every blocking box passes; boxes that aren't
+ * blocking show as notes. A concept that still fails is hidden, with "Show anyway" to reveal it.
  */
 export function ConceptTile({ concept, checks, onPick, compact, selected, label }: { concept: ConceptState; checks: CheckDef[]; onPick?: () => void; compact?: boolean; selected?: boolean; label?: string }) {
   const [open, setOpen] = useState(false);
-  const passed = concept.stage === "passed";
+  const [reveal, setReveal] = useState(false);
   const failed = concept.stage === "failed";
+  // A failed concept the user chose to see anyway behaves like a shown one (they can use it).
+  const shown = concept.stage === "passed" || (failed && reveal && Boolean(concept.image));
+  const passed = shown;
+  const notes = noteCount(concept, checks);
   const working = !passed && !failed;
   const done = concept.results.filter((r) => r.pass).length;
   const name = label ?? `Concept ${concept.index + 1}`;
@@ -70,23 +82,26 @@ export function ConceptTile({ concept, checks, onPick, compact, selected, label 
           selected && "ring-2 ring-foreground ring-offset-2 ring-offset-background",
         )}
       >
-        {concept.image && !failed && (
+        {concept.image && (!failed || shown) && (
           <img src={concept.image} alt={passed ? `Logo ${name.toLowerCase()}` : ""} className={cn("h-full w-full object-contain transition-[filter,opacity,transform] duration-700", passed && "mix-blend-multiply", working && "scale-110 opacity-45 blur-2xl")} />
         )}
         {working && (
           <span className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-black/30 text-center">
             <Loader2 className={cn("animate-spin text-white", compact ? "h-4 w-4" : "h-5 w-5")} aria-hidden="true" />
-            {!compact && <span className="text-[13px] font-medium text-white">{stageLabel(concept, checks.length)}</span>}
+            {!compact && <span className="text-[13px] font-medium text-white">{stageLabel(concept, checks.length, notes)}</span>}
             {!compact && (concept.fixes > 0 || concept.redraws > 0) && (
               <span className="font-mono text-[10.5px] text-white/60">{concept.redraws ? "fresh drawing · " : ""}fix round {concept.fixes}</span>
             )}
           </span>
         )}
-        {failed && (
+        {failed && !shown && (
           <span className="flex flex-col items-center gap-1.5 px-5 text-center">
             <X className="h-5 w-5 text-muted-foreground" aria-hidden="true" />
             {!compact && <span className="text-[13px] text-muted-foreground">{concept.note === "Stopped" ? "Stopped" : concept.note || "Didn't pass every check"}</span>}
           </span>
+        )}
+        {failed && shown && !compact && (
+          <span className="absolute top-3 left-3 rounded-full bg-black/80 px-2.5 py-1 text-[11px] font-medium text-white">Didn't pass every check</span>
         )}
         {passed && onPick && !compact && (
           <span className="absolute right-3 bottom-3 inline-flex h-9 items-center gap-1.5 rounded-full bg-black px-3.5 text-[13px] font-semibold text-white opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
@@ -97,9 +112,9 @@ export function ConceptTile({ concept, checks, onPick, compact, selected, label 
       </button>
 
       {compact ? (
-        <div className="flex items-center justify-between gap-1 px-0.5" title={stageLabel(concept, checks.length)}>
+        <div className="flex items-center justify-between gap-1 px-0.5" title={stageLabel(concept, checks.length, notes)}>
           <span className="font-mono text-[10px] tracking-[0.04em] text-muted-foreground uppercase">{PROVIDER[concept.provider]}</span>
-          {passed ? <Check className="h-3.5 w-3.5 text-success" aria-label={stageLabel(concept, checks.length)} /> : failed ? <X className="h-3.5 w-3.5 text-muted-foreground" aria-label="Not shown" /> : <Loader2 className="h-3.5 w-3.5 animate-spin text-subtle" aria-label={stageLabel(concept, checks.length)} />}
+          {passed ? <Check className="h-3.5 w-3.5 text-success" aria-label={stageLabel(concept, checks.length, notes)} /> : failed ? <X className="h-3.5 w-3.5 text-muted-foreground" aria-label="Not shown" /> : <Loader2 className="h-3.5 w-3.5 animate-spin text-subtle" aria-label={stageLabel(concept, checks.length, notes)} />}
         </div>
       ) : (
         <div className="flex flex-col gap-2 px-0.5">
@@ -108,15 +123,21 @@ export function ConceptTile({ concept, checks, onPick, compact, selected, label 
               <span className="hidden truncate text-[13px] font-medium sm:inline">{name}</span>
               <span className="font-mono text-[10.5px] tracking-[0.04em] text-muted-foreground uppercase">{PROVIDER[concept.provider]}</span>
             </span>
-            <button type="button" onClick={() => setOpen((o) => !o)} aria-expanded={open} aria-label={`${stageLabel(concept, checks.length)} — show checks`} className={cn("inline-flex h-8 shrink-0 items-center gap-1 rounded-lg px-1.5 text-xs font-medium", passed ? "text-success" : "text-subtle")}>
-              {stageLabel(concept, checks.length)}
+            <button type="button" onClick={() => setOpen((o) => !o)} aria-expanded={open} aria-label={`${failed && shown ? "Shown anyway" : stageLabel(concept, checks.length, notes)} — show checks`} className={cn("inline-flex h-8 shrink-0 items-center gap-1 rounded-lg px-1.5 text-xs font-medium", concept.stage === "passed" ? (notes ? "text-pending" : "text-success") : "text-subtle")}>
+              {failed && shown ? "Shown anyway" : stageLabel(concept, checks.length, notes)}
               <ChevronDown className={cn("h-3.5 w-3.5 transition-transform", open && "rotate-180")} aria-hidden="true" />
             </button>
           </div>
           <div className="h-[3px] overflow-hidden rounded-full bg-muted" role="progressbar" aria-label="Checks passed" aria-valuemin={0} aria-valuemax={checks.length} aria-valuenow={done}>
-            <div className={cn("h-full rounded-full transition-[width] duration-500", passed ? "bg-success" : failed ? "bg-line" : "bg-foreground")} style={{ width: `${checks.length ? (done / checks.length) * 100 : 0}%` }} />
+            <div className={cn("h-full rounded-full transition-[width] duration-500", concept.stage === "passed" ? (notes ? "bg-pending" : "bg-success") : failed ? "bg-line" : "bg-foreground")} style={{ width: `${checks.length ? (done / checks.length) * 100 : 0}%` }} />
           </div>
           {open && <Checklist concept={concept} checks={checks} />}
+          {failed && !shown && concept.image && concept.note !== "Stopped" && (
+            <button type="button" onClick={() => { setReveal(true); setOpen(true); }} className="inline-flex h-9 items-center justify-center gap-1.5 rounded-full border border-border text-[13px] font-medium text-subtle hover:text-foreground">
+              <Eye className="h-3.5 w-3.5" aria-hidden="true" />
+              Show anyway
+            </button>
+          )}
         </div>
       )}
     </article>

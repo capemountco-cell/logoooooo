@@ -114,27 +114,33 @@ export type CheckId =
   | "background" | "margin" | "clean" | "colors" | "mono" | "small" | "original"
   | "spelling" | "extra_text" | "type" | "brief" | "references" | "flat" | "quality";
 
-export type CheckDef = { id: CheckId; label: string; by: "code" | "ai" };
+/**
+ * A box a concept is checked against. Blocking boxes decide whether a concept is shown; the
+ * others are notes: shown on the concept, sent along with fixes, but never enough to hide it.
+ * Only what the user can't live with blocks — a misspelt name, artwork cut off, a mockup, broken
+ * shapes, a copied reference — so real AI output isn't held back by taste or tiny-size detail.
+ */
+export type CheckDef = { id: CheckId; label: string; by: "code" | "ai"; blocking: boolean };
 
-/** Every box a concept must tick before it is shown. */
+/** Every box a concept is checked against before it is shown. */
 export function checklist(brief: LogoBrief, hasReferences: boolean): CheckDef[] {
   const text = requiredText(brief);
   const hasLetters = Boolean(text.name || ((brief.logoType === "lettermark" || brief.logoType === "letterform") && brief.brandName));
   const defs: (CheckDef | false)[] = [
-    { id: "background", label: "Clean background", by: "code" },
-    { id: "margin", label: "Nothing cut off", by: "code" },
-    { id: "clean", label: "Traces to a clean vector", by: "code" },
-    { id: "colors", label: "Colour count fits the brief", by: "code" },
-    { id: "mono", label: "Works in one colour", by: "code" },
-    { id: "small", label: "Readable when small", by: "code" },
-    hasReferences && { id: "original", label: "Doesn't copy a reference", by: "code" },
-    hasLetters && { id: "spelling", label: "Text spelled exactly", by: "ai" },
-    { id: "extra_text", label: "No extra text", by: "ai" },
-    { id: "type", label: "Right logo type", by: "ai" },
-    { id: "brief", label: "Matches the brief", by: "ai" },
-    hasReferences && { id: "references", label: "References used only for their role", by: "ai" },
-    { id: "flat", label: "Flat logo, no mockup", by: "ai" },
-    { id: "quality", label: "No broken shapes or artefacts", by: "ai" },
+    { id: "background", label: "Clean background", by: "code", blocking: true },
+    { id: "margin", label: "Nothing cut off", by: "code", blocking: true },
+    { id: "clean", label: "Traces to a clean vector", by: "code", blocking: false },
+    { id: "colors", label: "Colour count fits the brief", by: "code", blocking: false },
+    { id: "mono", label: "Works in one colour", by: "code", blocking: false },
+    { id: "small", label: "Readable when small", by: "code", blocking: false },
+    hasReferences && { id: "original", label: "Doesn't copy a reference", by: "code", blocking: true },
+    hasLetters && { id: "spelling", label: "Text spelled exactly", by: "ai", blocking: true },
+    { id: "extra_text", label: "No extra text", by: "ai", blocking: true },
+    { id: "type", label: "Right logo type", by: "ai", blocking: true },
+    { id: "brief", label: "Matches the brief", by: "ai", blocking: false },
+    hasReferences && { id: "references", label: "References used only for their role", by: "ai", blocking: false },
+    { id: "flat", label: "Flat logo, no mockup", by: "ai", blocking: true },
+    { id: "quality", label: "No broken shapes or artefacts", by: "ai", blocking: true },
   ];
   return defs.filter((d): d is CheckDef => Boolean(d));
 }
