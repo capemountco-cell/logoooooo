@@ -52,3 +52,30 @@ describe("pasted brief cleanup", () => {
     expect(text).toBe("Name: Halo\n\nMinimal\n\nA calm wellness app for night-shift nurses.");
   });
 });
+
+describe("design-contest boilerplate", () => {
+  it("drops deliverables, final files, formats, outline rules and platform policies, keeping the brief", () => {
+    const pasted = `Name to incorporate in the logo
+AK Cards
+Other notes
+We're big outdoor people (hiking, camping, hunting, etc) and we'd love to incorporate that if possible.
+Generative AI use is not allowed in this category.
+Learn more
+Contest deliverables:
+1 x Logo
+Download template
+Final files:
+Layered vectors: AI, EPS
+Screen quality: PNG, JPG, PDF
+AI
+EPS
+PNG, JPG, PDF
+Text in logos should be converted to outlines.`;
+    const { text } = cleanPastedBrief(pasted);
+    expect(text).toContain("AK Cards");
+    expect(text).toContain("We're big outdoor people");
+    for (const junk of ["Generative AI", "Learn more", "Contest deliverables", "1 x Logo", "Download template", "Final files", "Layered vectors", "Screen quality", "EPS", "PDF", "outlines"]) {
+      expect(text).not.toContain(junk);
+    }
+  });
+});

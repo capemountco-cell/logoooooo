@@ -17,6 +17,15 @@ const JUNK = [
   /^(posted|published|updated|last updated)( on| by)?\b.{0,40}$/i,
   /^[\s|•·›»>/\\\-–—_=*#]+$/, // separators and breadcrumb glyphs only
   /^\d+\s*(comments?|likes?|shares?|views?|reviews?)$/i,
+  // Design-contest boilerplate: deliverables, final files, formats, outline rules, platform policies.
+  /^(contest deliverables|deliverables|final files|design submission notes|attachments|no files|references)\s*:?$/i,
+  /^\d+\s*x\s+[\w .-]{1,30}$/i, // "1 x Logo"
+  /^download (template|all files)$/i,
+  /^(layered vectors|screen quality|vector files?|print files?|file formats?)\b/i,
+  /^(ai|eps|svg|pdf|png|jpe?g|psd)([\s,/|·]+(ai|eps|svg|pdf|png|jpe?g|psd))*\.?$/i, // format lists
+  /\btext in (the )?logos? should be converted to outlines\b/i,
+  /\bgenerative ai (use )?is not allowed\b/i,
+  /^learn more\.?$/i,
 ];
 
 const URL_ONLY = /^(https?:\/\/|www\.)\S+$/i;
