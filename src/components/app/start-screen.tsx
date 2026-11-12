@@ -36,20 +36,20 @@ export function StartScreen(p: Props) {
   const shapeDrop = useImageDrop((files) => { const f = files[0]; if (f) p.onShape(f); });
   return (
     <main className="flex flex-1 flex-col items-center gap-8 px-4 pt-6 pb-28 sm:gap-10 sm:px-5 sm:pt-12 sm:pb-16">
-      <h1 className="max-w-[760px] text-balance text-[32px] font-semibold leading-[1.1] tracking-[-0.03em] text-[#8A8A86] sm:text-center sm:text-[52px] sm:leading-[1.08] sm:tracking-[-0.035em]">
+      <h1 className="max-w-[760px] text-balance text-[32px] font-semibold leading-[1.1] tracking-[-0.03em] text-muted-foreground sm:text-center sm:text-[52px] sm:leading-[1.08] sm:tracking-[-0.035em]">
         Drop a logo. Get a <span className="text-foreground">clean, exact vector.</span>
       </h1>
 
       <section
         aria-label="Upload your logo"
-        className="flex w-full max-w-[760px] flex-col gap-3.5 rounded-[22px] border border-border bg-card p-3.5 shadow-[0_1px_2px_rgba(17,17,17,0.04),0_18px_48px_rgba(17,17,17,0.07)]"
+        className="flex w-full max-w-[760px] flex-col gap-3.5 rounded-[22px] border border-border bg-card p-3.5 shadow-[0_1px_2px_rgba(0,0,0,0.04),0_18px_48px_rgba(0,0,0,0.07)]"
       >
         <label
           {...logoDrop.handlers}
           aria-label="Logo upload area"
           className={cn(
-            "relative flex min-h-[200px] cursor-pointer flex-col items-center justify-center gap-3 rounded-[14px] border-[1.5px] border-dashed bg-[#FAFAF8] p-6 text-center transition-colors sm:min-h-[240px]",
-            logoDrop.dragging ? "border-blue bg-[#F4F7FF]" : "border-[#D4D4D0] hover:border-[#BDBDB8]",
+            "relative flex min-h-[200px] cursor-pointer flex-col items-center justify-center gap-3 rounded-[14px] border-[1.5px] border-dashed bg-field p-6 text-center transition-colors sm:min-h-[240px]",
+            logoDrop.dragging ? "border-blue bg-blue/10" : "border-line hover:border-line-strong",
           )}
         >
           <input
@@ -71,7 +71,7 @@ export function StartScreen(p: Props) {
             </>
           ) : (
             <>
-              <span className="inline-flex h-[52px] w-[52px] items-center justify-center rounded-[14px] border border-border bg-card shadow-[0_2px_6px_rgba(17,17,17,0.06)]">
+              <span className="inline-flex h-[52px] w-[52px] items-center justify-center rounded-[14px] border border-border bg-card shadow-[0_2px_6px_rgba(0,0,0,0.06)]">
                 <Upload className="h-[22px] w-[22px]" aria-hidden="true" />
               </span>
               <span className="text-base font-semibold">
@@ -99,7 +99,7 @@ export function StartScreen(p: Props) {
                 className={cn(
                   "flex min-h-[72px] flex-col items-start justify-center gap-1 rounded-[14px] border bg-card px-3 text-left transition-colors sm:min-h-0 sm:h-10 sm:items-center sm:rounded-[9px] sm:px-2",
                   on
-                    ? "border-foreground ring-1 ring-foreground sm:border-border sm:ring-0 sm:shadow-[0_1px_3px_rgba(17,17,17,0.08)]"
+                    ? "border-foreground ring-1 ring-foreground sm:border-border sm:ring-0 sm:shadow-[0_1px_3px_rgba(0,0,0,0.08)]"
                     : "border-border sm:border-transparent sm:bg-transparent sm:text-subtle sm:hover:text-foreground",
                 )}
               >
@@ -118,7 +118,7 @@ export function StartScreen(p: Props) {
               onChange={(e) => p.onText(e.target.value)}
               aria-label="New text"
               placeholder="e.g. Purely Lagom"
-              className="h-12 rounded-xl border border-border bg-[#FAFAF8] px-3.5 text-base outline-none focus:border-foreground"
+              className="h-12 rounded-xl border border-border bg-field px-3.5 text-base outline-none focus:border-foreground"
             />
           </label>
         )}
@@ -130,7 +130,7 @@ export function StartScreen(p: Props) {
               aria-label="Shape upload area"
               className={cn(
                 "inline-flex h-12 cursor-pointer items-center gap-2.5 rounded-xl border-[1.5px] border-dashed px-3.5 text-sm font-medium",
-                shapeDrop.dragging ? "border-blue" : "border-[#D4D4D0]",
+                shapeDrop.dragging ? "border-blue" : "border-line",
               )}
             >
               <input
@@ -157,7 +157,7 @@ export function StartScreen(p: Props) {
                 value={p.text}
                 onChange={(e) => p.onText(e.target.value)}
                 placeholder="Direction (optional), e.g. make each half a note"
-                className="h-12 flex-1 rounded-xl border border-border bg-[#FAFAF8] px-3.5 text-base outline-none focus:border-foreground"
+                className="h-12 flex-1 rounded-xl border border-border bg-field px-3.5 text-base outline-none focus:border-foreground"
               />
             </label>
           </div>
@@ -167,8 +167,8 @@ export function StartScreen(p: Props) {
           <p className="hidden min-w-[200px] flex-1 text-[13px] text-muted-foreground sm:block">{info.hint}</p>
           {info.ai && (
             <label className="flex items-center gap-2 text-[13px] font-medium text-subtle">
-              <Switch checked={p.more} onCheckedChange={p.onMore} aria-label="Compare 3 AI versions" />
-              Compare 3 AI versions
+              <Switch checked={p.more} onCheckedChange={p.onMore} aria-label="Compare 2 AI versions" />
+              Compare 2 AI versions
             </label>
           )}
           <div className="fixed inset-x-0 bottom-0 z-20 bg-gradient-to-t from-background via-background/95 to-transparent px-4 pt-6 pb-5 sm:static sm:bg-none sm:p-0">
@@ -229,7 +229,7 @@ export function StartScreen(p: Props) {
                   onClick={() => p.onDeleteRecent(r)}
                   aria-label={`Delete ${r.name} from recent`}
                   title="Delete"
-                  className="absolute top-1.5 right-1.5 inline-flex h-9 w-9 items-center justify-center rounded-lg border border-border bg-card/95 text-subtle shadow-[0_1px_3px_rgba(17,17,17,0.08)] hover:text-destructive"
+                  className="absolute top-1.5 right-1.5 inline-flex h-9 w-9 items-center justify-center rounded-lg border border-border bg-card/95 text-subtle shadow-[0_1px_3px_rgba(0,0,0,0.08)] hover:text-destructive"
                 >
                   <X className="h-4 w-4" aria-hidden="true" />
                 </button>

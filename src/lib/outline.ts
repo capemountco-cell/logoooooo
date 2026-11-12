@@ -132,3 +132,32 @@ export function outlineStats(paths: TracedPath[]): OutlineStats {
   const shapes = areas.filter((a) => Math.sign(a) === sign).length;
   return { anchors, handles, shapes, holes: paths.length - shapes, curves, lines };
 }
+
+export type OutlineTier = "large" | "medium" | "small";
+
+/** On-screen size (px) below which a contour is drawn medium or small in the Outlines view. */
+export const TIER_PX = { medium: 140, small: 44 } as const;
+
+/**
+ * Groups contours by how big they appear on screen, so the Outlines view can draw each legibly:
+ * long dashes with a paper halo on large shapes, short dashes on medium ones, and a thin solid
+ * line on small ones (fine lettering, counters), where dashes would chop the shape apart.
+ */
+export function outlineTiers(paths: TracedPath[], pxPerUnit: number): Record<OutlineTier, TracedPath[]> {
+  const tiers: Record<OutlineTier, TracedPath[]> = { large: [], medium: [], small: [] };
+  for (const p of paths) {
+    let x0 = p.start.x, x1 = p.start.x, y0 = p.start.y, y1 = p.start.y;
+    for (const s of p.segments) {
+      const pts = s.type === "C" ? [s.c1, s.c2, s.to] : [s.to];
+      for (const q of pts) {
+        if (q.x < x0) x0 = q.x;
+        if (q.x > x1) x1 = q.x;
+        if (q.y < y0) y0 = q.y;
+        if (q.y > y1) y1 = q.y;
+      }
+    }
+    const size = Math.max(x1 - x0, y1 - y0) * pxPerUnit;
+    tiers[size >= TIER_PX.medium ? "large" : size >= TIER_PX.small ? "medium" : "small"].push(p);
+  }
+  return tiers;
+}

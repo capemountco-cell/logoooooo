@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { editImage, imageSettings } from "@/lib/image-gateway.server";
 import { buildLogoPrompt } from "@/lib/logo-prompt";
 import { describeShapeHybrid } from "@/lib/shape-brief.server";
-import { geminiEdit, grokEdit } from "@/lib/own-providers.server";
+import { grokEdit } from "@/lib/own-providers.server";
 
 export const Route = createFileRoute("/api/edit-image")({
   server: {
@@ -12,7 +12,7 @@ export const Route = createFileRoute("/api/edit-image")({
         if (!apiKey) return new Response("Missing OpenAI key", { status: 500 });
         const form = await request.formData();
         const provider = String(form.get("provider") ?? "openai");
-        if (provider !== "openai" && provider !== "gemini" && provider !== "grok") return new Response("Invalid provider", { status: 400 });
+        if (provider !== "openai" && provider !== "grok") return new Response("Invalid provider", { status: 400 });
         form.delete("provider");
         const mode = String(form.get("mode") ?? "replace");
         if (mode !== "replace" && mode !== "recreate" && mode !== "blend") return new Response("Invalid logo mode", { status: 400 });
@@ -52,7 +52,7 @@ export const Route = createFileRoute("/api/edit-image")({
         form.set("prompt", buildLogoPrompt(mode === "blend" ? "" : text, fix, mode, brief, { geometry, tracedReference }));
         if (provider !== "openai") {
           const files = [...form.entries()].filter(([n, v]) => (n === "image" || n === "image[]") && v instanceof File).map(([, v]) => v as File);
-          return provider === "gemini" ? geminiEdit(String(form.get("prompt")), files) : grokEdit(String(form.get("prompt")), files);
+          return grokEdit(String(form.get("prompt")), files);
         }
         form.set("quality", "high");
         const upstream = await editImage({ ...imageSettings, apiKey }, form);

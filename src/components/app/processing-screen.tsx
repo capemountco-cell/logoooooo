@@ -56,7 +56,7 @@ export function ProcessingScreen({
           {image && (
             <img src={image} alt="" aria-hidden="true" className="absolute inset-0 h-full w-full object-contain opacity-80 blur-[10px] motion-safe:animate-pulse" />
           )}
-          <div role="status" aria-live="polite" className="relative flex items-center gap-3 rounded-[14px] border border-border bg-card py-3 pr-[18px] pl-3 shadow-[0_10px_30px_rgba(17,17,17,0.10)]">
+          <div role="status" aria-live="polite" className="relative flex items-center gap-3 rounded-[14px] border border-border bg-card py-3 pr-[18px] pl-3 shadow-[0_10px_30px_rgba(0,0,0,0.10)]">
             <span className="inline-flex h-[30px] w-[30px] items-center justify-center rounded-[9px] bg-muted">
               <Spline className="h-4 w-4" aria-hidden="true" />
             </span>
@@ -73,7 +73,7 @@ export function ProcessingScreen({
                 "inline-flex h-[34px] items-center gap-2 rounded-full border px-3 text-[13px]",
                 s.state === "done" && "border-border bg-card text-subtle",
                 s.state === "active" && "border-foreground bg-foreground font-medium text-primary-foreground",
-                s.state === "todo" && "border-dashed border-[#D4D4D0] text-muted-foreground",
+                s.state === "todo" && "border-dashed border-line text-muted-foreground",
               )}
             >
               {s.state === "done" && <Check className="h-3.5 w-3.5" strokeWidth={2.6} aria-hidden="true" />}

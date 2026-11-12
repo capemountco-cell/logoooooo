@@ -1,7 +1,7 @@
 // What the result workspace shows and saves (browser only: builds Files and renders PNGs).
 import { boardOutputs, DEFAULT_PNG_SIZE, renderPngPair, type LogoOutputs } from "@/lib/logo-convert";
 import { BOARD } from "@/lib/board";
-import { logoFile } from "@/lib/logo-files";
+import { aiFile, logoFile } from "@/lib/logo-files";
 import type { TaskMode } from "@/lib/logo-task";
 import { parseSvg, type ViewBox } from "@/lib/outline";
 import type { RecentItem } from "@/lib/recent";
@@ -17,7 +17,7 @@ export type PngPair = { size: number; pngFile: File; whiteFile: File; brandFile?
 /** What an export is framed on: the 1300 × 1200 design board (default) or the logo alone. */
 export type Canvas = "board" | "logo";
 
-export type BoardExport = { svg: string; view: ViewBox; svgFile: File; pngs: PngPair; png: string };
+export type BoardExport = { svg: string; view: ViewBox; svgFile: File; aiFile: File; pngs: PngPair; png: string };
 
 export type LogoResult = {
   name: string;
@@ -33,6 +33,8 @@ export type LogoResult = {
   /** Transparent PNG data URL, for previews. */
   png: string;
   svgFile: File;
+  /** Adobe Illustrator (.ai, PDF-compatible) built from the same SVG. */
+  aiFile: File;
   /** Prepared PNGs at the default size, ready for a synchronous mobile share. */
   pngs: PngPair;
   accuracy: Accuracy | null;
@@ -67,6 +69,7 @@ function boardExport(name: string, b: { svg: string; view: ViewBox; png: string;
     view: b.view,
     png: b.png,
     svgFile: logoFile(b.svg, `${name}.svg`, "image/svg+xml"),
+    aiFile: aiFile(b.svg, name),
     pngs: pngPairFiles(name, BOARD.width, b, BOARD.width),
   };
 }
@@ -88,6 +91,7 @@ export function buildResult(
     png: o.png,
     // Logo-only files carry "-logo"; the board files get the plain name since they are the default.
     svgFile: logoFile(o.svg, `${fileName}-logo.svg`, "image/svg+xml"),
+    aiFile: aiFile(o.svg, `${fileName}-logo`),
     pngs: pngPairFiles(`${fileName}-logo`, DEFAULT_PNG_SIZE, { png: o.png, whitePng: o.whitePng, brandPng: o.brandPng }),
     board: boardExport(fileName, o.board),
     background: o.background,
@@ -110,6 +114,7 @@ export async function resultFromRecent(item: RecentItem): Promise<LogoResult> {
     view,
     png: pair.png,
     svgFile: logoFile(item.svg, `${item.name}-logo.svg`, "image/svg+xml"),
+    aiFile: aiFile(item.svg, `${item.name}-logo`),
     pngs: pngPairFiles(`${item.name}-logo`, DEFAULT_PNG_SIZE, pair),
     board: boardExport(item.name, board),
     background: null,

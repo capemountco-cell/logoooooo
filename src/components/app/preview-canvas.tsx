@@ -1,6 +1,6 @@
 import { useId, useMemo, useState } from "react";
 import { Copy, Minus, Plus } from "lucide-react";
-import { outlineStats, type ViewBox } from "@/lib/outline";
+import { outlineStats, outlineTiers, type OutlineTier, type ViewBox } from "@/lib/outline";
 import { BOARD, pathsBounds } from "@/lib/board";
 import type { LogoResult } from "@/lib/result-model";
 import { isOverlay, radialTransform } from "@/lib/color-trace";
@@ -8,17 +8,12 @@ import { pathData } from "@/lib/vectorize";
 import { cn } from "@/lib/utils";
 
 export type PreviewView = "artwork" | "outlines" | "compare" | "code";
-export type CanvasBack = "dots" | "white" | "black";
 
 const ZOOMS = [0.5, 0.75, 1, 1.5, 2, 3, 4];
-const BACKS: { id: CanvasBack; label: string; swatch: string }[] = [
-  { id: "dots", label: "Dotted background", swatch: "#F6F6F4" },
-  { id: "white", label: "White background", swatch: "#FFFFFF" },
-  { id: "black", label: "Black background", swatch: "#111111" },
-];
 
-function backClass(back: CanvasBack) {
-  return back === "black" ? "bg-[#111111]" : back === "white" ? "bg-white" : "bg-dots-light";
+/** The artboard's background as it will export: checkerboard for transparent, white or the brand colour. */
+function artboard(fill: string) {
+  return { className: fill === "transparent" ? "checker" : fill === "white" ? "bg-white" : "", style: fill.startsWith("#") ? { background: fill } : {} };
 }
 
 /**
@@ -66,6 +61,16 @@ function Vector({ result, ink, className, frame }: { result: LogoResult; ink: st
   );
 }
 
+/** Outline drawing in screen pixels per contour size (see outlineTiers): dashed stroke over a paper halo. */
+export const OUTLINE: Record<OutlineTier, { stroke: number; dash: string | undefined; halo: number }> = {
+  large: { stroke: 2, dash: "8 5", halo: 5 },
+  medium: { stroke: 1.6, dash: "4 3", halo: 3 },
+  small: { stroke: 1.1, dash: undefined, halo: 0 },
+};
+/** The Outlines view's display width, used to judge how big each contour looks. */
+const OUTLINE_WIDTH = 520;
+const OUTLINE_HEIGHT = 560;
+
 /**
  * Blueprint-style outlines: the logo as a pale fill with a dashed outline, plus dashed guides
  * along its top and bottom. Stroke widths are in screen pixels so every size looks the same.
@@ -78,12 +83,22 @@ function Outlines({ result, className, points }: { result: LogoResult; className
   const unit = Math.max(v.width, v.height) / 360; // ~1 screen px at the default size
   const ink = "var(--outline-ink)";
   const far = Math.max(v.width, v.height) * 20;
-  const dash = { stroke: ink, strokeWidth: 1.5, strokeDasharray: "5 4", vectorEffect: "non-scaling-stroke" as const };
+  // Legibility (user's reference): long, firm dashes over a paper-coloured halo, so contours that
+  // run close together (an O's counter against its bowl) stay apart. Smaller contours get shorter
+  // dashes, and fine lettering a thin solid line, so nothing is chopped into fragments.
+  const ppu = Math.min(OUTLINE_WIDTH / v.width, OUTLINE_HEIGHT / v.height);
+  const tiers = useMemo(() => {
+    const t = outlineTiers(result.paths, ppu);
+    return (["large", "medium", "small"] as const).filter((k) => t[k].length).map((k) => ({ k, d: pathData(t[k]) }));
+  }, [result.paths, ppu]);
+  const line = (k: OutlineTier) => ({ stroke: ink, strokeWidth: OUTLINE[k].stroke, strokeDasharray: OUTLINE[k].dash, strokeLinecap: "butt" as const, vectorEffect: "non-scaling-stroke" as const });
   return (
     <svg viewBox={`${v.x} ${v.y} ${v.width} ${v.height}`} className={cn("overflow-visible", className)} role="img" aria-label={`Outlines with ${stats.anchors.length} anchor points`}>
-      <line x1={v.x - far} x2={v.x + v.width + far} y1={b.y0} y2={b.y0} {...dash} />
-      <line x1={v.x - far} x2={v.x + v.width + far} y1={b.y1} y2={b.y1} {...dash} />
-      <path d={d} fill="var(--outline-fill)" fillRule="evenodd" strokeLinejoin="round" {...dash} />
+      <line x1={v.x - far} x2={v.x + v.width + far} y1={b.y0} y2={b.y0} {...line("large")} />
+      <line x1={v.x - far} x2={v.x + v.width + far} y1={b.y1} y2={b.y1} {...line("large")} />
+      <path d={d} fill="var(--outline-fill)" fillRule="evenodd" />
+      {tiers.map(({ k, d: td }) => OUTLINE[k].halo > 0 && <path key={`halo-${k}`} d={td} fill="none" stroke="var(--outline-paper)" strokeWidth={OUTLINE[k].halo} strokeLinejoin="round" vectorEffect="non-scaling-stroke" />)}
+      {tiers.map(({ k, d: td }) => <path key={`line-${k}`} d={td} fill="none" strokeLinejoin="round" {...line(k)} />)}
       {points && (
         <>
           {stats.handles.map(([a, h], i) => (
@@ -102,13 +117,11 @@ function Outlines({ result, className, points }: { result: LogoResult; className
 }
 
 export function PreviewCanvas({
-  result, view, onView, back, onBack, onCopy, copied, board, boardFill = "white",
+  result, view, onView, onCopy, copied, board, boardFill = "white",
 }: {
   result: LogoResult;
   view: PreviewView;
   onView: (view: PreviewView) => void;
-  back: CanvasBack;
-  onBack: (back: CanvasBack) => void;
   onCopy: () => void;
   copied: boolean;
   /** Show the artwork framed on the export board (the default export). */
@@ -125,12 +138,11 @@ export function PreviewCanvas({
     { id: "compare", label: "Compare" },
     { id: "code", label: "Code" },
   ];
-  const ink = back === "black" ? "#FFFFFF" : "#111111";
-  const art = "h-auto w-[min(360px,70vw)] max-w-full";
+  const fill = artboard(boardFill);
   return (
-    <div className={cn("relative flex min-h-[340px] flex-1 flex-col overflow-hidden rounded-[18px] border border-border sm:min-h-[600px]", view === "code" ? "bg-card" : view === "outlines" ? "bg-outline-paper" : backClass(back))}>
+    <div className={cn("relative flex min-h-[340px] flex-1 flex-col overflow-hidden rounded-[18px] border border-border sm:min-h-[600px]", view === "code" ? "bg-card" : "bg-background")}>
       <div className="absolute inset-x-3 top-3 z-10 flex flex-wrap items-start justify-between gap-2">
-        <div role="tablist" aria-label="View" className="flex gap-0.5 rounded-xl border border-border bg-card p-[3px] shadow-[0_2px_8px_rgba(17,17,17,0.06)]">
+        <div role="tablist" aria-label="View" className="flex gap-0.5 rounded-xl border border-border bg-card p-[3px] shadow-[0_2px_8px_rgba(0,0,0,0.06)]">
           {views.map((t) => (
             <button
               key={t.id}
@@ -149,7 +161,7 @@ export function PreviewCanvas({
         </div>
         {(view === "artwork" || view === "outlines") && (
           <div className="flex gap-2">
-            <div className="hidden items-center gap-0.5 rounded-xl border border-border bg-card p-[3px] shadow-[0_2px_8px_rgba(17,17,17,0.06)] sm:flex">
+            <div className="hidden items-center gap-0.5 rounded-xl border border-border bg-card p-[3px] shadow-[0_2px_8px_rgba(0,0,0,0.06)] sm:flex">
               <button type="button" aria-label="Zoom out" disabled={zi <= 0} onClick={() => setZoom(ZOOMS[Math.max(0, zi - 1)]!)} className="inline-flex h-[34px] w-[34px] items-center justify-center rounded-[9px] disabled:opacity-30">
                 <Minus className="h-4 w-4" aria-hidden="true" />
               </button>
@@ -164,29 +176,12 @@ export function PreviewCanvas({
                 aria-pressed={points}
                 onClick={() => setPoints((p) => !p)}
                 className={cn(
-                  "h-[40px] rounded-xl border border-border px-3 text-[13px] font-medium shadow-[0_2px_8px_rgba(17,17,17,0.06)]",
+                  "h-[40px] rounded-xl border border-border px-3 text-[13px] font-medium shadow-[0_2px_8px_rgba(0,0,0,0.06)]",
                   points ? "bg-foreground text-primary-foreground" : "bg-card text-subtle hover:text-foreground",
                 )}
               >
                 Points
               </button>
-            )}
-            {view === "artwork" && (
-              <div role="radiogroup" aria-label="Canvas background" className="hidden items-center sm:flex gap-1 rounded-xl border border-border bg-card px-[5px] py-[3px] shadow-[0_2px_8px_rgba(17,17,17,0.06)]">
-                {BACKS.map((b) => (
-                  <button
-                    key={b.id}
-                    type="button"
-                    role="radio"
-                    aria-checked={back === b.id}
-                    aria-label={b.label}
-                    onClick={() => onBack(b.id)}
-                    className="inline-flex h-[34px] w-[30px] items-center justify-center"
-                  >
-                    <span className={cn("h-6 w-6 rounded-full", back === b.id ? "ring-2 ring-blue" : "border border-[#D4D4D0]")} style={{ background: b.swatch }} />
-                  </button>
-                ))}
-              </div>
             )}
           </div>
         )}
@@ -198,11 +193,8 @@ export function PreviewCanvas({
             {view === "artwork" && board ? (
               <figure className="m-0 flex flex-col items-center gap-2">
                 <div
-                  className={cn(
-                    "relative w-[min(560px,78vw)] overflow-hidden rounded-[4px] shadow-[0_0_0_1px_rgba(17,17,17,0.12),0_12px_32px_rgba(17,17,17,0.08)]",
-                    boardFill === "transparent" ? "checker" : boardFill === "white" ? "bg-white" : "",
-                  )}
-                  style={{ aspectRatio: `${BOARD.width} / ${BOARD.height}`, ...(boardFill.startsWith("#") ? { background: boardFill } : {}) }}
+                  className={cn("relative w-[min(560px,78vw)] overflow-hidden rounded-[4px]", fill.className)}
+                  style={{ aspectRatio: `${BOARD.width} / ${BOARD.height}`, ...fill.style }}
                 >
                   <Vector result={result} ink="#000000" frame={board} className="absolute inset-0 h-full w-full" />
                 </div>
@@ -211,9 +203,17 @@ export function PreviewCanvas({
                 </figcaption>
               </figure>
             ) : view === "artwork" ? (
-              <Vector result={result} ink={ink} className={art} />
+              // Logo only: the tight crop on its own artboard, so black logos stay visible on the black canvas.
+              <figure className="m-0 flex flex-col items-center gap-2">
+                <div className={cn("rounded-[4px] p-6", fill.className)} style={fill.style}>
+                  <Vector result={result} ink="#000000" className="h-auto w-[min(420px,70vw)] max-w-full" />
+                </div>
+                <figcaption className="font-mono text-[11px] text-muted-foreground">Logo · tight crop</figcaption>
+              </figure>
             ) : (
-              <Outlines result={result} className="h-auto max-h-[60vh] w-[min(560px,82vw)] max-w-full" points={points} />
+              <div className="overflow-hidden rounded-[6px] bg-outline-paper px-6 py-10 sm:px-10">
+                <Outlines result={result} className="h-auto max-h-[56vh] w-[min(520px,74vw)] max-w-full" points={points} />
+              </div>
             )}
           </div>
         </div>
@@ -242,7 +242,7 @@ export function PreviewCanvas({
             <Copy className="h-3.5 w-3.5" aria-hidden="true" />
             {copied ? "Copied" : "Copy"}
           </button>
-          <pre className="max-h-[70vh] flex-1 overflow-auto whitespace-pre-wrap break-all rounded-xl bg-foreground p-5 pr-24 font-mono text-[12.5px] leading-relaxed text-[#E8E8E4]">{board ? result.board.svg : result.svg}</pre>
+          <pre className="max-h-[70vh] flex-1 overflow-auto whitespace-pre-wrap break-all rounded-xl border border-border bg-field p-5 pr-24 font-mono text-[12.5px] leading-relaxed text-subtle">{board ? result.board.svg : result.svg}</pre>
         </div>
       )}
     </div>

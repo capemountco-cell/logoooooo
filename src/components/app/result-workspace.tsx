@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { AlertCircle, ArrowLeft, ArrowUp, Copy, Download, Plus, RotateCw, Type } from "lucide-react";
+import { AlertCircle, ArrowLeft, ArrowUp, ChevronDown, Copy, Download, Plus, RotateCw, Type } from "lucide-react";
 import { Drawer, DrawerContent, DrawerDescription, DrawerTitle } from "@/components/ui/drawer";
 import { renderPngPair } from "@/lib/logo-convert";
 import { saveLogoSvg } from "@/lib/logo-files";
@@ -10,7 +10,7 @@ import { BOARD } from "@/lib/board";
 import { savePng } from "@/lib/save-png";
 import { cn } from "@/lib/utils";
 import { modeInfo } from "./modes";
-import { PreviewCanvas, type CanvasBack, type PreviewView } from "./preview-canvas";
+import { PreviewCanvas, type PreviewView } from "./preview-canvas";
 import { Segmented } from "./segmented";
 
 export type Version = { name: string; src?: string; err?: string; match?: number | null };
@@ -34,12 +34,12 @@ type Props = {
 
 const SIZES = [1024, 2048, 4096] as const;
 const BOARD_SIZES = [BOARD.width, BOARD.width * 2, BOARD.width * 3] as const;
-type Format = "svg" | "png" | "png-white" | "png-brand";
+type Format = "svg" | "ai" | "png" | "png-white" | "png-brand";
 type PngBack = "transparent" | "white" | "brand";
 
 function Stat({ label, value, extra }: { label: string; value: string | number; extra?: string | undefined }) {
   return (
-    <div className="rounded-xl bg-[#F7F7F5] px-3 py-2.5">
+    <div className="rounded-xl bg-field px-3 py-2.5">
       <dt className="font-mono text-[10.5px] tracking-[0.04em] text-muted-foreground">{label}</dt>
       <dd className="mt-1 text-lg font-semibold">
         {value}
@@ -53,8 +53,7 @@ const pct = (v: number) => `${(Math.floor(v * 1000) / 10).toFixed(1)}%`;
 
 export function ResultWorkspace({ result, versions, onPickVersion, onNew, onRerun, onFix, notice, onVariant, colorBusy }: Props) {
   const [view, setView] = useState<PreviewView>("artwork");
-  const [back, setBack] = useState<CanvasBack>("dots");
-  const [format, setFormat] = useState<"svg" | "png">("svg");
+  const [format, setFormat] = useState<"svg" | "ai" | "png">("svg");
   const [canvas, setCanvas] = useState<Canvas>("board");
   const [pngBack, setPngBack] = useState<PngBack>("transparent");
   const [sizes, setSizes] = useState<Record<Canvas, number>>({ board: BOARD.width, logo: result.pngs.size });
@@ -66,6 +65,7 @@ export function ResultWorkspace({ result, versions, onPickVersion, onNew, onReru
   const [sheet, setSheet] = useState(false);
   const [sheetFormat, setSheetFormat] = useState<Format>("svg");
   const [fix, setFix] = useState("");
+  const [detailsOpen, setDetailsOpen] = useState(false);
   const stats = useMemo(() => outlineStats(result.paths), [result.paths]);
   const shapeLayers = result.layers.filter((l) => !isOverlay(l.fill));
   const gradientCount = shapeLayers.filter((l) => l.fill.type !== "solid").length;
@@ -76,7 +76,7 @@ export function ResultWorkspace({ result, versions, onPickVersion, onNew, onReru
   const size = sizes[canvas];
   const key = (c: Canvas, s: number) => `${c}:${s}`;
   const defaults = (r: LogoResult): Record<string, PngPair> => ({ [key("board", BOARD.width)]: r.board.pngs, [key("logo", r.pngs.size)]: r.pngs });
-  const files = { board: { svg: result.board.svgFile }, logo: { svg: result.svgFile } };
+  const files = { board: { svg: result.board.svgFile, ai: result.board.aiFile }, logo: { svg: result.svgFile, ai: result.aiFile } };
 
   // A new result starts over with its own prepared files.
   useEffect(() => {
@@ -117,9 +117,9 @@ export function ResultWorkspace({ result, versions, onPickVersion, onNew, onReru
   // Must run straight from the tap: mobile sharing refuses a share started after an await.
   const save = (f: Format, c: Canvas, pngs: PngPair | undefined) => {
     setSaveError(null);
-    if (f === "svg") {
-      saveLogoSvg(files[c].svg).catch((e: unknown) => {
-        if (!(e instanceof Error && e.name === "AbortError")) setSaveError("The SVG could not be saved. Try again.");
+    if (f === "svg" || f === "ai") {
+      saveLogoSvg(files[c][f]).catch((e: unknown) => {
+        if (!(e instanceof Error && e.name === "AbortError")) setSaveError(`The ${f === "ai" ? "Illustrator file" : "SVG"} could not be saved. Try again.`);
       });
       return;
     }
@@ -175,7 +175,7 @@ export function ResultWorkspace({ result, versions, onPickVersion, onNew, onReru
       )}
       <div className="flex flex-1 flex-wrap gap-4 p-3 pb-28 sm:p-4 lg:pb-4">
         <section aria-label="Preview" className="flex min-w-0 flex-[999_1_560px] flex-col gap-3">
-          <PreviewCanvas result={result} view={view} onView={setView} back={back} onBack={setBack} onCopy={copy} copied={copied} board={canvas === "board" ? result.board.view : null} boardFill={pngBack === "brand" && brand ? brand : pngBack} />
+          <PreviewCanvas result={result} view={view} onView={setView} onCopy={copy} copied={copied} board={canvas === "board" ? result.board.view : null} boardFill={pngBack === "brand" && brand ? brand : pngBack} />
           <div className="flex flex-wrap items-center justify-between gap-2.5">
             <div className="flex flex-wrap gap-2">
               {onRerun && result.mode === "trace" && (
@@ -216,53 +216,23 @@ export function ResultWorkspace({ result, versions, onPickVersion, onNew, onReru
         </section>
 
         <aside aria-label="Details and export" className="flex max-w-full flex-[1_1_300px] flex-col gap-3">
-          {(onVariant || result.advice) && (
-            <section aria-labelledby="colour-h" className="flex flex-col gap-3 rounded-[18px] border border-border bg-card p-[18px]">
-              <div className="flex items-center justify-between gap-2">
-                <h2 id="colour-h" className="text-sm font-semibold">Colour</h2>
-                {result.advice && (
-                  <span className={cn("rounded-md px-2 py-1 font-mono text-[11px]", result.advice.recommend === "color" ? "bg-foreground text-primary-foreground" : "bg-muted text-subtle")}>
-                    {result.advice.recommend === "color" ? "KEEP COLOUR" : "B&W IS FINE"}
-                  </span>
-                )}
-              </div>
-              {result.advice && (
-                <>
-                  <p className="text-[13px] leading-snug text-subtle">{result.advice.reason}</p>
-                  <div className="flex items-center gap-3">
-                    <div className="flex -space-x-1" aria-label={`Colours found: ${result.advice.palette.join(", ") || "none"}`}>
-                      {result.advice.palette.map((c) => (
-                        <span key={c} className="h-6 w-6 rounded-full border-2 border-card" style={{ background: c }} title={c} />
-                      ))}
-                    </div>
-                    <div className="flex flex-1 items-center gap-2">
-                      <div aria-hidden="true" className="h-1.5 flex-1 overflow-hidden rounded-full bg-[#EDEDEA]">
-                        <div className="h-full bg-foreground" style={{ width: `${result.advice.score}%` }} />
-                      </div>
-                      <span className="font-mono text-[11px] text-muted-foreground" title="How much is lost in black & white">{result.advice.score}/100</span>
-                    </div>
-                  </div>
-                </>
-              )}
-              {onVariant && (
-                <Segmented
-                  label="Output colour"
-                  value={result.variant}
-                  disabled={Boolean(colorBusy)}
-                  onChange={(v) => onVariant(v)}
-                  options={[
-                    { value: "mono", label: "Black & white" },
-                    { value: "color", label: colorBusy ? "Tracing colour…" : "Colour" },
-                  ]}
-                />
-              )}
-            </section>
-          )}
-
+          {/* Accuracy first, collapsed to the score: outline details open on demand. */}
           <section className={cn("flex flex-col gap-3.5 rounded-[18px] border p-[18px]", drifted ? "border-warn-border bg-warn-bg" : "border-border bg-card")}>
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between gap-2">
               <h2 className="text-sm font-semibold">{result.accuracy?.kind === "shape" ? "Shape match" : "Accuracy"}</h2>
-              <span className="rounded-md bg-muted px-2 py-1 font-mono text-[11px] text-subtle">{info.ai ? "AI REDRAW" : "NO AI"}</span>
+              <div className="flex items-center gap-1.5">
+                <span className="rounded-md bg-muted px-2 py-1 font-mono text-[11px] text-subtle">{info.ai ? "AI REDRAW" : "NO AI"}</span>
+                <button
+                  type="button"
+                  onClick={() => setDetailsOpen((o) => !o)}
+                  aria-expanded={detailsOpen}
+                  aria-controls="accuracy-details"
+                  aria-label={detailsOpen ? "Hide outline details" : "Show outline details"}
+                  className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground hover:text-foreground"
+                >
+                  <ChevronDown className={cn("h-4 w-4 transition-transform", detailsOpen && "rotate-180")} aria-hidden="true" />
+                </button>
+              </div>
             </div>
             {result.accuracy ? (
               <>
@@ -272,7 +242,7 @@ export function ResultWorkspace({ result, versions, onPickVersion, onNew, onReru
                     {result.accuracy.kind === "pixel" ? "pixel match with your file" : result.accuracy.kind === "color" ? "colour match with your file" : "match with your original"}
                   </span>
                 </div>
-                <div aria-hidden="true" className="h-1.5 overflow-hidden rounded-full bg-[#EDEDEA]">
+                <div aria-hidden="true" className="h-1.5 overflow-hidden rounded-full bg-muted">
                   <div className={cn("h-full", drifted ? "bg-warn" : "bg-foreground")} style={{ width: pct(result.accuracy.value) }} />
                 </div>
                 {drifted && (
@@ -295,13 +265,57 @@ export function ResultWorkspace({ result, versions, onPickVersion, onNew, onReru
                 {result.original ? "This is a new design, so it isn't scored against the original." : "Opened from Recent."}
               </p>
             )}
-            <dl className="grid grid-cols-2 gap-2.5">
+            <dl id="accuracy-details" hidden={!detailsOpen} className="grid grid-cols-2 gap-2.5">
               <Stat label="ANCHORS" value={stats.anchors.length} />
               <Stat label="SHAPES" value={stats.shapes} extra={stats.holes ? `${stats.holes} hole${stats.holes === 1 ? "" : "s"}` : undefined} />
               <Stat label="CURVES" value={stats.curves} />
               <Stat label="STRAIGHT" value={stats.lines} />
             </dl>
           </section>
+
+          {(onVariant || result.advice) && (
+            <section aria-labelledby="colour-h" className="flex flex-col gap-3 rounded-[18px] border border-border bg-card p-[18px]">
+              <div className="flex items-center justify-between gap-2">
+                <h2 id="colour-h" className="text-sm font-semibold">Colour</h2>
+                {result.advice && (
+                  <span className={cn("rounded-md px-2 py-1 font-mono text-[11px]", result.advice.recommend === "color" ? "bg-foreground text-primary-foreground" : "bg-muted text-subtle")}>
+                    {result.advice.recommend === "color" ? "KEEP COLOUR" : "B&W IS FINE"}
+                  </span>
+                )}
+              </div>
+              {result.advice && (
+                <>
+                  <p className="text-[13px] leading-snug text-subtle">{result.advice.reason}</p>
+                  <div className="flex items-center gap-3">
+                    <div className="flex -space-x-1" aria-label={`Colours found: ${result.advice.palette.join(", ") || "none"}`}>
+                      {result.advice.palette.map((c) => (
+                        <span key={c} className="h-6 w-6 rounded-full border-2 border-card" style={{ background: c }} title={c} />
+                      ))}
+                    </div>
+                    <div className="flex flex-1 items-center gap-2">
+                      <div aria-hidden="true" className="h-1.5 flex-1 overflow-hidden rounded-full bg-muted">
+                        <div className="h-full bg-foreground" style={{ width: `${result.advice.score}%` }} />
+                      </div>
+                      <span className="font-mono text-[11px] text-muted-foreground" title="How much is lost in black & white">{result.advice.score}/100</span>
+                    </div>
+                  </div>
+                </>
+              )}
+              {onVariant && (
+                <Segmented
+                  label="Output colour"
+                  value={result.variant}
+                  disabled={Boolean(colorBusy)}
+                  onChange={(v) => onVariant(v)}
+                  options={[
+                    { value: "mono", label: "Black & white" },
+                    { value: "color", label: colorBusy ? "Tracing colour…" : "Colour" },
+                  ]}
+                />
+              )}
+            </section>
+          )}
+
 
           {versions.length > 0 && (
             <section className="flex flex-col gap-2.5 rounded-[18px] border border-border bg-card p-[18px]">
@@ -315,7 +329,7 @@ export function ResultWorkspace({ result, versions, onPickVersion, onNew, onReru
                       onClick={() => v.src && onPickVersion(v.src)}
                       className="flex w-full flex-col items-center gap-1 rounded-xl border border-border p-1.5 text-[11px] disabled:opacity-60"
                     >
-                      <span className="flex aspect-square w-full items-center justify-center overflow-hidden rounded-lg bg-[#F7F7F5]">
+                      <span className="flex aspect-square w-full items-center justify-center overflow-hidden rounded-lg bg-field">
                         {v.src ? <img src={v.src} alt={`${v.name} version`} className="max-h-full max-w-full object-contain" /> : <span className="px-1 text-center text-muted-foreground">{v.err ? "Failed" : "Working…"}</span>}
                       </span>
                       <span className="font-semibold">{v.name}</span>
@@ -338,9 +352,9 @@ export function ResultWorkspace({ result, versions, onPickVersion, onNew, onReru
               label="Canvas"
               value={canvas}
               onChange={setCanvas}
-              options={[{ value: "board", label: `Board ${BOARD.width}×${BOARD.height}` }, { value: "logo", label: "Logo only" }]}
+              options={[{ value: "board", label: "Board" }, { value: "logo", label: "Logo" }]}
             />
-            <Segmented label="Format" value={format} onChange={setFormat} options={[{ value: "svg", label: "SVG" }, { value: "png", label: "PNG" }]} />
+            <Segmented label="Format" value={format} onChange={setFormat} options={[{ value: "ai", label: ".Ai" }, { value: "svg", label: ".SVG" }, { value: "png", label: ".PNG" }]} />
             {format === "png" && (
               <div className="flex flex-col gap-2.5">
                 <div className="flex items-center justify-between gap-2">
@@ -356,17 +370,19 @@ export function ResultWorkspace({ result, versions, onPickVersion, onNew, onReru
             <button
               type="button"
               disabled={(format === "png" && (!prepared[key(canvas, size)] || preparing)) || saving}
-              onClick={() => save(format === "svg" ? "svg" : pngBack === "white" ? "png-white" : pngBack === "brand" ? "png-brand" : "png", canvas, prepared[key(canvas, size)])}
+              onClick={() => save(format !== "png" ? format : pngBack === "white" ? "png-white" : pngBack === "brand" ? "png-brand" : "png", canvas, prepared[key(canvas, size)])}
               className="inline-flex h-[50px] items-center justify-center gap-2.5 rounded-[13px] bg-primary text-[15px] font-semibold text-primary-foreground disabled:opacity-50"
             >
               <Download className="h-[18px] w-[18px]" aria-hidden="true" />
-              {format === "png" && preparing ? "Preparing PNG…" : format === "png" ? "Download PNG" : "Download SVG"}
+              {format === "png" && preparing ? "Preparing .PNG…" : format === "png" ? "Download .PNG" : format === "ai" ? "Download .Ai" : "Download .SVG"}
             </button>
             <p className="text-center text-xs text-muted-foreground">
               {canvas === "board" && <>Centred on a {BOARD.width} × {BOARD.height} board. </>}
               {format === "png"
                 ? "Rendered from the vector, so it stays crisp at any size."
-                : result.variant === "color"
+                : format === "ai"
+                  ? "Adobe Illustrator file · every outline opens as an editable path."
+                  : result.variant === "color"
                   ? `${shapeLayers.length} colour shapes${gradientCount ? `, ${gradientCount} gradients` : ""}${shadeCount ? `, ${shadeCount} soft highlights & shadows` : ""} · opens in Figma, Illustrator and Canva.`
                   : "One clean path · opens in Figma, Illustrator and Canva."}
             </p>
@@ -394,13 +410,14 @@ export function ResultWorkspace({ result, versions, onPickVersion, onNew, onReru
               label="Canvas"
               value={canvas}
               onChange={setCanvas}
-              options={[{ value: "board", label: `Board ${BOARD.width}×${BOARD.height}` }, { value: "logo", label: "Logo only" }]}
+              options={[{ value: "board", label: "Board" }, { value: "logo", label: "Logo" }]}
             />
             <fieldset className="flex flex-col gap-2">
               <legend className="mb-2 text-xs font-semibold text-subtle">Format</legend>
               {(
                 [
                   ["svg", "SVG vector", "Infinitely sharp · for Figma, Canva, print"],
+                  ["ai", "Adobe Illustrator (.ai)", "Editable paths · opens in Illustrator"],
                   ["png", "PNG · transparent", `${sheetDims} · for socials and slides`],
                   ["png-white", "PNG · white background", `${sheetDims} · for documents and email`],
                   ...(brand ? ([["png-brand", "PNG · brand background", `${sheetDims} · on your logo's own colour`]] as const) : []),
@@ -415,9 +432,9 @@ export function ResultWorkspace({ result, versions, onPickVersion, onNew, onReru
                 </label>
               ))}
             </fieldset>
-            <button type="button" disabled={saving || (sheetFormat !== "svg" && !sheetPngs)} onClick={() => save(sheetFormat, canvas, sheetPngs)} className="inline-flex h-[54px] items-center justify-center gap-2.5 rounded-[15px] bg-primary text-base font-semibold text-primary-foreground disabled:opacity-50">
+            <button type="button" disabled={saving || (sheetFormat !== "svg" && sheetFormat !== "ai" && !sheetPngs)} onClick={() => save(sheetFormat, canvas, sheetPngs)} className="inline-flex h-[54px] items-center justify-center gap-2.5 rounded-[15px] bg-primary text-base font-semibold text-primary-foreground disabled:opacity-50">
               <Download className="h-[18px] w-[18px]" aria-hidden="true" />
-              {saving ? "Opening save options…" : sheetFormat === "svg" ? "Save SVG" : "Save PNG"}
+              {saving ? "Opening save options…" : sheetFormat === "svg" ? "Save .SVG" : sheetFormat === "ai" ? "Save .Ai" : "Save .PNG"}
             </button>
             <button type="button" onClick={copy} className="inline-flex h-12 items-center justify-center gap-2.5 rounded-[14px] border border-border bg-card text-[15px] font-medium">
               <Copy className="h-4 w-4" aria-hidden="true" />

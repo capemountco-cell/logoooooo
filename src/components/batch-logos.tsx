@@ -23,7 +23,7 @@ export function BatchLogos({ mode, onMode }: { mode: TaskMode; onMode: (mode: Ta
   const ai = mode !== "trace";
 
   function createJobs(file: File, start: boolean, m: TaskMode = mode): BatchJob[] {
-    const providers: TaskOptions["provider"][] = more && m !== "trace" ? ["openai", "gemini", "grok"] : ["openai"];
+    const providers: TaskOptions["provider"][] = more && m !== "trace" ? ["openai", "grok"] : ["openai"];
     return (start ? providers : (["openai"] as const)).map((provider) => ({ id: crypto.randomUUID(), file, options: start ? { mode: m, text, shape, provider } : null }));
   }
   function uploadLogos(files: File[]) {
@@ -85,19 +85,19 @@ export function BatchLogos({ mode, onMode }: { mode: TaskMode; onMode: (mode: Ta
             {(mode === "replace" || mode === "blend") && (
               <label className="flex min-w-[220px] flex-1">
                 <span className="sr-only">{mode === "blend" ? "Direction (optional)" : "New text"}</span>
-                <input aria-label="Batch text" placeholder={mode === "blend" ? "Direction (optional)" : "New text"} value={text} onChange={(e) => setText(e.target.value)} className="h-11 flex-1 rounded-xl border border-border bg-[#FAFAF8] px-3.5 text-base outline-none focus:border-foreground" />
+                <input aria-label="Batch text" placeholder={mode === "blend" ? "Direction (optional)" : "New text"} value={text} onChange={(e) => setText(e.target.value)} className="h-11 flex-1 rounded-xl border border-border bg-field px-3.5 text-base outline-none focus:border-foreground" />
               </label>
             )}
             {mode === "blend" && (
-              <label {...shapeDrop.handlers} aria-label="Batch shape upload area" className={cn("inline-flex h-11 cursor-pointer items-center gap-2 rounded-xl border-[1.5px] border-dashed px-3.5 text-sm font-medium", shapeDrop.dragging ? "border-blue" : "border-[#D4D4D0]")}>
+              <label {...shapeDrop.handlers} aria-label="Batch shape upload area" className={cn("inline-flex h-11 cursor-pointer items-center gap-2 rounded-xl border-[1.5px] border-dashed px-3.5 text-sm font-medium", shapeDrop.dragging ? "border-blue" : "border-line")}>
                 <Plus className="h-4 w-4" aria-hidden="true" />
                 <span className="max-w-40 truncate">{shape?.name ?? "Shape reference"}</span>
                 <input type="file" accept="image/*" aria-label="Batch shape reference" className="sr-only" onChange={(e) => setShape(e.target.files?.[0] ?? null)} />
               </label>
             )}
             <label className="flex items-center gap-2 text-[13px] font-medium text-subtle">
-              <Switch checked={more} onCheckedChange={setMore} aria-label="Get 3 batch versions" />
-              Compare 3 AI versions
+              <Switch checked={more} onCheckedChange={setMore} aria-label="Get 2 batch versions" />
+              Compare 2 AI versions
             </label>
           </div>
         )}
@@ -108,7 +108,7 @@ export function BatchLogos({ mode, onMode }: { mode: TaskMode; onMode: (mode: Ta
         aria-label="Batch upload area"
         className={cn(
           "flex min-h-[88px] cursor-pointer items-center justify-center gap-3 rounded-2xl border-[1.5px] border-dashed bg-card px-4 text-center text-sm text-subtle",
-          logoDrop.dragging ? "border-blue bg-[#F4F7FF]" : "border-[#D4D4D0]",
+          logoDrop.dragging ? "border-blue bg-blue/10" : "border-line",
         )}
       >
         <Upload className="h-[18px] w-[18px] text-foreground" aria-hidden="true" />

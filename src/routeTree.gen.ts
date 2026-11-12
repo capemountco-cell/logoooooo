@@ -10,11 +10,26 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as ApiBriefRouteImport } from './routes/api/brief'
+import { Route as ApiConceptRouteImport } from './routes/api/concept'
 import { Route as ApiEditImageRouteImport } from './routes/api/edit-image'
+import { Route as ApiReferenceNoteRouteImport } from './routes/api/reference-note'
+import { Route as ApiReferencesRouteImport } from './routes/api/references'
+import { Route as ApiReviewRouteImport } from './routes/api/review'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiBriefRoute = ApiBriefRouteImport.update({
+  id: '/api/brief',
+  path: '/api/brief',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiConceptRoute = ApiConceptRouteImport.update({
+  id: '/api/concept',
+  path: '/api/concept',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiEditImageRoute = ApiEditImageRouteImport.update({
@@ -22,31 +37,88 @@ const ApiEditImageRoute = ApiEditImageRouteImport.update({
   path: '/api/edit-image',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiReferenceNoteRoute = ApiReferenceNoteRouteImport.update({
+  id: '/api/reference-note',
+  path: '/api/reference-note',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiReferencesRoute = ApiReferencesRouteImport.update({
+  id: '/api/references',
+  path: '/api/references',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiReviewRoute = ApiReviewRouteImport.update({
+  id: '/api/review',
+  path: '/api/review',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/api/brief': typeof ApiBriefRoute
+  '/api/concept': typeof ApiConceptRoute
   '/api/edit-image': typeof ApiEditImageRoute
+  '/api/reference-note': typeof ApiReferenceNoteRoute
+  '/api/references': typeof ApiReferencesRoute
+  '/api/review': typeof ApiReviewRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/api/brief': typeof ApiBriefRoute
+  '/api/concept': typeof ApiConceptRoute
   '/api/edit-image': typeof ApiEditImageRoute
+  '/api/reference-note': typeof ApiReferenceNoteRoute
+  '/api/references': typeof ApiReferencesRoute
+  '/api/review': typeof ApiReviewRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/api/brief': typeof ApiBriefRoute
+  '/api/concept': typeof ApiConceptRoute
   '/api/edit-image': typeof ApiEditImageRoute
+  '/api/reference-note': typeof ApiReferenceNoteRoute
+  '/api/references': typeof ApiReferencesRoute
+  '/api/review': typeof ApiReviewRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/api/edit-image'
+  fullPaths:
+    | '/'
+    | '/api/brief'
+    | '/api/concept'
+    | '/api/edit-image'
+    | '/api/reference-note'
+    | '/api/references'
+    | '/api/review'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/api/edit-image'
-  id: '__root__' | '/' | '/api/edit-image'
+  to:
+    | '/'
+    | '/api/brief'
+    | '/api/concept'
+    | '/api/edit-image'
+    | '/api/reference-note'
+    | '/api/references'
+    | '/api/review'
+  id:
+    | '__root__'
+    | '/'
+    | '/api/brief'
+    | '/api/concept'
+    | '/api/edit-image'
+    | '/api/reference-note'
+    | '/api/references'
+    | '/api/review'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  ApiBriefRoute: typeof ApiBriefRoute
+  ApiConceptRoute: typeof ApiConceptRoute
   ApiEditImageRoute: typeof ApiEditImageRoute
+  ApiReferenceNoteRoute: typeof ApiReferenceNoteRoute
+  ApiReferencesRoute: typeof ApiReferencesRoute
+  ApiReviewRoute: typeof ApiReviewRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -58,6 +130,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/brief': {
+      id: '/api/brief'
+      path: '/api/brief'
+      fullPath: '/api/brief'
+      preLoaderRoute: typeof ApiBriefRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/concept': {
+      id: '/api/concept'
+      path: '/api/concept'
+      fullPath: '/api/concept'
+      preLoaderRoute: typeof ApiConceptRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/edit-image': {
       id: '/api/edit-image'
       path: '/api/edit-image'
@@ -65,12 +151,38 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiEditImageRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/reference-note': {
+      id: '/api/reference-note'
+      path: '/api/reference-note'
+      fullPath: '/api/reference-note'
+      preLoaderRoute: typeof ApiReferenceNoteRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/references': {
+      id: '/api/references'
+      path: '/api/references'
+      fullPath: '/api/references'
+      preLoaderRoute: typeof ApiReferencesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/review': {
+      id: '/api/review'
+      path: '/api/review'
+      fullPath: '/api/review'
+      preLoaderRoute: typeof ApiReviewRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  ApiBriefRoute: ApiBriefRoute,
+  ApiConceptRoute: ApiConceptRoute,
   ApiEditImageRoute: ApiEditImageRoute,
+  ApiReferenceNoteRoute: ApiReferenceNoteRoute,
+  ApiReferencesRoute: ApiReferencesRoute,
+  ApiReviewRoute: ApiReviewRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
