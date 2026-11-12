@@ -1,9 +1,17 @@
 // Prompts for generating, reviewing and fixing logo concepts (pure, shared by client and server).
 import { logoType, SHOWS_NAME, type LogoBrief, type ReferenceNote } from "@/lib/brief";
+import { briefHexes } from "@/lib/palette";
 
 export type Provider = "openai" | "grok";
 /** Four concepts per brief: two from each model, so the set has real variety. */
 export const CONCEPT_PROVIDERS: Provider[] = ["openai", "grok", "openai", "grok"];
+/**
+ * Which model draws each of the 4 concepts. Grok is off by default (live runs failed it
+ * constantly), so all four come from OpenAI unless the "Use Grok" setting is on.
+ */
+export function conceptProviders(useGrok: boolean): Provider[] {
+  return useGrok ? CONCEPT_PROVIDERS : ["openai", "openai", "openai", "openai"];
+}
 
 /** One creative lean per concept, always inside the brief's personality. */
 export const DIRECTIONS = [
@@ -67,6 +75,17 @@ const OUTPUT_RULES =
 const DESIGN_RULES =
   "DESIGN QUALITY: Simple, distinctive and memorable. It must still read clearly at 32 pixels and in a single colour. Use at most 3 colours unless the brief specifies more. Balanced optical weight, consistent stroke weights and corner treatment across every element. Original: never imitate a famous existing logo.";
 
+/**
+ * The colour instruction. A palette with hex values (the user's, or one built by palette.ts) is
+ * locked: those exact colours and no others, each with its job; plain colour words stay guidance.
+ */
+export function paletteLine(colors: string[]) {
+  if (!colors.length) return "Colours: choose a fitting, restrained palette (1–2 colours).";
+  if (!briefHexes(colors).length) return `Colours: ${colors.join(", ")}.`;
+  const role = (c: string) => (/^primary\b/i.test(c) ? " — main colour for the symbol" : /^accent\b/i.test(c) ? " — sparingly, for one detail or highlight" : /^neutral\b/i.test(c) ? " — for the lettering" : "");
+  return `PALETTE (use exactly these flat colours and no others; white is the background): ${colors.map((c) => `${c}${role(c)}`).join("; ")}.`;
+}
+
 /** The prompt for one concept. `index` picks its creative lean (0–3). */
 export function buildConceptPrompt(brief: LogoBrief, references: ReferenceNote[], index = 0) {
   const type = logoType(brief.logoType);
@@ -75,7 +94,7 @@ export function buildConceptPrompt(brief: LogoBrief, references: ReferenceNote[]
     brief.audience && `Audience: ${brief.audience}.`,
     brief.personality.length && `Personality: ${brief.personality.join(", ")}.`,
     brief.symbolIdeas.length && type.id !== "wordmark" && type.id !== "lettermark" && type.id !== "letterform" && `Symbol ideas to explore (pick or merge, keep it simple): ${brief.symbolIdeas.join("; ")}.`,
-    brief.colors.length ? `Colours: ${brief.colors.join(", ")}.` : "Colours: choose a fitting, restrained palette (1–2 colours).",
+    paletteLine(brief.colors),
     brief.typography && `Lettering direction: ${brief.typography}.`,
     brief.mustHave.length && `Must have: ${brief.mustHave.join("; ")}.`,
     brief.avoid.length && `Avoid: ${brief.avoid.join("; ")}.`,

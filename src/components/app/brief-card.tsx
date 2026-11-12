@@ -131,7 +131,7 @@ export function BriefCard({
         <Sparkles className="h-4 w-4" aria-hidden="true" />
         Generate 4 concepts
       </button>
-      <p className="-mt-2 text-center text-xs text-muted-foreground">2 from OpenAI, 2 from Grok. Each one is checked and fixed before you see it.</p>
+      <p className="-mt-2 text-center text-xs text-muted-foreground">Each one is checked and fixed before you see it.</p>
     </section>
   );
 }

@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { LogoBrief, ReferenceNote, ReferenceRole } from "@/lib/brief";
-import { cleanBrief, conceptDeps, describeRef, findAutoRefs, type PreparedRef, type RefItem } from "@/lib/concept-client";
-import { checklist, CONCEPT_PROVIDERS, requiredText, type CheckDef } from "@/lib/concept-prompt";
+import { cleanBrief, conceptDeps, describeRef, findAutoRefs, measurePalette, type PreparedRef, type RefItem } from "@/lib/concept-client";
+import { buildPalette, paletteToColors } from "@/lib/palette";
+import { checklist, conceptProviders, requiredText, type CheckDef } from "@/lib/concept-prompt";
 import { runConcept, type ConceptState } from "@/lib/concept-pipeline";
 import type { Candidate, SearchProvider } from "@/lib/reference-search";
 import { loadSettings } from "@/components/app/settings-sheet";
@@ -13,8 +14,8 @@ export type Round = { id: string; concepts: ConceptState[]; checks: CheckDef[]; 
 
 export type RefStatus = "idle" | "searching" | "ready" | "none" | "failed";
 
-const queued = (): ConceptState[] =>
-  CONCEPT_PROVIDERS.map((provider, index) => ({ provider, index, stage: "queued", image: null, results: [], fixes: 0, redraws: 0, note: "" }));
+const queued = (providers = conceptProviders(loadSettings().grok)): ConceptState[] =>
+  providers.map((provider, index) => ({ provider, index, stage: "queued", image: null, results: [], fixes: 0, redraws: 0, note: "" }));
 
 const settled = (c: ConceptState) => c.stage === "passed" || c.stage === "failed";
 
@@ -91,6 +92,9 @@ export function useBriefJob() {
     }
   }, []);
 
+  /** Colour samples from the last reference search (real logos in this space). */
+  const samplesRef = useRef<string[]>([]);
+
   /** Fills the roles no reference covers yet. Failure never blocks generating. */
   const autoPick = async (b: LogoBrief, current: RefItem[], signal: AbortSignal) => {
     const missing = autoRoles(b).filter((r) => !current.some((x) => x.role === r));
@@ -101,6 +105,7 @@ export function useBriefJob() {
       if (signal.aborted) return current;
       setCandidates(found.candidates);
       setProvider(found.provider);
+      samplesRef.current = found.samples;
       const next = [...current, ...found.refs];
       setRefStatus(found.refs.length ? "ready" : "none");
       return next;
@@ -117,21 +122,33 @@ export function useBriefJob() {
     const abort = fresh();
     const id = crypto.randomUUID();
     let use = input?.refs ?? refsRef.current;
-    setRounds((all) => [{ id, concepts: queued(), checks: [], refs: use }, ...all]);
+    const providers = conceptProviders(loadSettings().grok);
+    setRounds((all) => [{ id, concepts: queued(providers), checks: [], refs: use }, ...all]);
     setPhase("generating");
     setError(null);
-    if (!picked.current && loadSettings().autoRefs) {
+    let brief_ = b;
+    if (!picked.current) {
       picked.current = true;
-      use = await autoPick(b, use, abort.signal);
-      if (abort.signal.aborted) return;
-      setRefs(use);
+      if (loadSettings().autoRefs) {
+        use = await autoPick(b, use, abort.signal);
+        if (abort.signal.aborted) return;
+        setRefs(use);
+      }
+      // No colours in the brief: build a palette from the colours real logos in this space use
+      // (measured from the reference samples), shaped by colour theory. The user's colours always win.
+      if (!b.colors.length) {
+        const palette = samplesRef.current.length ? await measurePalette(samplesRef.current, b).catch(() => buildPalette([], b)) : buildPalette([], b);
+        if (abort.signal.aborted) return;
+        brief_ = { ...b, colors: paletteToColors(palette) };
+        setBrief(brief_);
+      }
     }
-    const job = { brief: b, references: notes(use), signatures: use.map((r) => r.signature) };
-    const checks = checklist(b, use.length > 0);
+    const job = { brief: brief_, references: notes(use), signatures: use.map((r) => r.signature) };
+    const checks = checklist(brief_, use.length > 0);
     const deps = conceptDeps(job, checks);
     setRounds((all) => all.map((r) => (r.id === id ? { ...r, checks, refs: use } : r)));
     await Promise.all(
-      CONCEPT_PROVIDERS.map((p, index) =>
+      providers.map((p, index) =>
         runConcept({ provider: p, index, checks }, deps, abort.signal, (s) => {
           if (abort.signal.aborted) return;
           setRounds((all) => all.map((r) => (r.id === id ? { ...r, concepts: r.concepts.map((c) => (c.index === index ? s : c)) } : r)));
