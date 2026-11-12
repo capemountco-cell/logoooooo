@@ -123,3 +123,27 @@ describe("review", () => {
     expect(bad.issue).toContain('"Blom & Co."');
   });
 });
+
+describe("empty form fields", () => {
+  it("never treats a placeholder like 'Unspecified' as a slogan, name or colour", async () => {
+    const { isPlaceholder } = await import("@/lib/brief");
+    const b = normalizeBrief({ brandName: "AK Cards", tagline: "Unspecified", colors: ["N/A", "forest green", "—"], mustHave: ["None"], typography: "not specified", summary: "A vintage sports card logo." });
+    expect(b.tagline).toBe("");
+    expect(b.colors).toEqual(["forest green"]);
+    expect(b.mustHave).toEqual([]);
+    expect(b.typography).toBe("");
+    expect(b.brandName).toBe("AK Cards");
+    expect(normalizeBrief({ brandName: "NA" }).brandName).toBe("NA");
+    expect(normalizeBrief({ brandName: "Unspecified" }).brandName).toBe("");
+    for (const p of ["Unspecified", "unspecified.", "(Unspecified)", "None", "n/a", "NA", "-", "—", "TBD", "No slogan", "\"None\""]) expect(isPlaceholder(p)).toBe(true);
+    for (const real of ["Unspecified Studios", "None Like It", "Nate", "No Limits"]) expect(isPlaceholder(real)).toBe(false);
+    // Nothing to draw: the concept prompt gets no tagline line.
+    expect(buildConceptPrompt(normalizeBrief({ brandName: "AK Cards", tagline: "Unspecified", logoType: "combination", summary: "x" }), [])).not.toContain("TAGLINE");
+  });
+
+  it("tells both the brief model and the screenshot reader that placeholders mean empty", async () => {
+    const { EXTRACT_INSTRUCTIONS } = await import("@/lib/brief-extract");
+    expect(BRIEF_INSTRUCTIONS).toContain("never use the placeholder word itself as a slogan");
+    expect(EXTRACT_INSTRUCTIONS).toContain("never transcribe the placeholder as its value");
+  });
+});

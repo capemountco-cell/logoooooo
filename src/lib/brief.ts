@@ -127,6 +127,7 @@ export const BRIEF_INSTRUCTIONS = [
   "You turn a client's messy, unordered notes into a precise logo design brief for an image model. Read everything, including fragments, typos and asides, and work out exactly what logo they need.",
   "PASTED PAGES: the notes may be copied from a web page, job post, design-contest listing, email or document. Ignore everything that isn't about the brand or the logo: navigation and menus, headers and footers, cookie and legal notices, links, buttons, social links, ads, prices, contest rules, platform boilerplate, author bios and unrelated page content. Extract only the actual brief. Never carry over deliverables, final file formats, template downloads, \"convert text to outlines\" instructions or platform policy notes (such as rules about generative AI use).",
   "BRAND NAME AND TAGLINE: copy them character for character exactly as the client typed them — same spelling, case, spaces and punctuation. Never correct, translate, expand or invent them. If the client gave no name, leave brandName empty and add \"brand name\" to missing. Only include a tagline the client explicitly asked to appear in the logo.",
+  "EMPTY FIELDS: form placeholders such as \"Unspecified\", \"Not specified\", \"None\", \"N/A\" or \"—\" mean the client gave nothing for that field. Leave it empty — never use the placeholder word itself as a slogan, name, colour or anything else.",
   `LOGO TYPE: choose one of: ${LOGO_TYPES.map((t) => `${t.id} (${t.short})`).join(", ")}. Combination marks are by far the most common choice for professional brands and the safest default: use "combination" unless the notes clearly point elsewhere. Signals: the client asks for a type by name or description → use it; only initials / a long or multi-word name they want shortened → lettermark; wants just the name, or the name is short and distinctive with no symbol idea → wordmark; wants an app-icon-like single letter → letterform; wants only an icon of a concrete thing → pictorial; tech, finance or an abstract idea with no concrete object, symbol only → abstract; heritage, craft beer, coffee, schools, clubs, sports, "badge", "vintage" → emblem; kids, food, gaming, sports teams, "character" → mascot; "minimal line", "single line", "outline" → line. Give a one-sentence reason and two sensible alternatives.`,
   "Fill the other fields from the notes, inferring sensibly where the client implies something (e.g. a children's dentist suggests friendly and playful). personality: 3–5 adjectives. colors: plain colour names or hex values the client wants (empty if none stated; you may infer one fitting direction). typography: the lettering direction (e.g. \"rounded geometric sans, lowercase\"). symbolIdeas: 0–3 concrete symbol ideas if a symbol is part of the type. mustHave / avoid: explicit requirements and exclusions. summary: one clear sentence describing the logo to design.",
   "Use the reference notes, if any, as facts about what each reference image should contribute; do not change their roles.",
@@ -160,7 +161,20 @@ export const BRIEF_SCHEMA = {
   required: ["brandName", "tagline", "industry", "audience", "personality", "logoType", "typeReason", "alternativeTypes", "symbolIdeas", "colors", "typography", "mustHave", "avoid", "summary", "missing"],
 } as const;
 
-const text = (v: unknown, max = 300) => (typeof v === "string" ? v.trim().slice(0, max) : "");
+/**
+ * Form placeholders meaning "nothing was given" ("Unspecified", "None", "N/A", "—"…). A field
+ * holding only one of these is empty: never a slogan, name or colour to draw.
+ */
+export const PLACEHOLDER = /^[\s"'“”‘’([]*(unspecified|not specified|none( specified| given| provided)?|no(ne)?|n\/?a|nil|null|undefined|tbd|tbc|to be (decided|determined|confirmed)|no (slogan|tagline|text|preference|name)|-+|–|—|\.+|\?+|empty|blank|not applicable)[\s"'“”‘’)\].!]*$/i;
+
+export function isPlaceholder(v: string) {
+  return PLACEHOLDER.test(v.trim());
+}
+
+const text = (v: unknown, max = 300) => {
+  const t = typeof v === "string" ? v.trim().slice(0, max) : "";
+  return isPlaceholder(t) ? "" : t;
+};
 const list = (v: unknown, n = 6, max = 120) => (Array.isArray(v) ? v.map((x) => text(x, max)).filter(Boolean).slice(0, n) : []);
 const isType = (v: unknown): v is LogoTypeId => typeof v === "string" && (LOGO_TYPE_IDS as string[]).includes(v);
 
@@ -169,7 +183,8 @@ export function normalizeBrief(raw: unknown): LogoBrief {
   const r = (raw && typeof raw === "object" ? raw : {}) as Record<string, unknown>;
   const logoType = isType(r["logoType"]) ? r["logoType"] : DEFAULT_LOGO_TYPE;
   return {
-    brandName: text(r["brandName"], 60),
+    // A brand may really be called "Nil" or "NA": only unmistakable placeholders are blanked.
+    brandName: ((n) => (/^[\s"'(]*(unspecified|not specified|n\/a)[\s"').]*$/i.test(n) ? "" : n))(typeof r["brandName"] === "string" ? r["brandName"].trim().slice(0, 60) : ""),
     tagline: text(r["tagline"], 80),
     industry: text(r["industry"], 120),
     audience: text(r["audience"], 160),

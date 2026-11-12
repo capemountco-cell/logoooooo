@@ -31,6 +31,7 @@ export const EXTRACT_INSTRUCTIONS = [
   "For inspiration or example images, describe in a few words the style each one shows (e.g. \"vintage circular badge, distressed texture\", \"hand-lettered script\") without inventing names or text.",
   "Ignore everything that is not the brief: the platform's own branding, navigation, buttons, timers, deadlines, prices and prize badges, user names and avatars, ratings, translation pickers, submission rules, file-format lists, legal text and footers. Do not add advice or anything that is not in the brief.",
   `ALWAYS LEAVE OUT these sections and lines entirely, even when they appear in the brief: ${IRRELEVANT_SECTIONS}.`,
+  "Fields the form marks \"Unspecified\", \"None\", \"N/A\" or similar were left empty by the client: leave that field out entirely (e.g. write no slogan line at all) — never transcribe the placeholder as its value.",
   "Use short labelled lines (e.g. \"Name: …\", \"Industry: …\"). If something is unreadable, leave it out rather than guess.",
 ].join("\n\n");
 
