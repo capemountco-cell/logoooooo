@@ -129,7 +129,7 @@ export function BriefCard({
         className="inline-flex h-[50px] items-center justify-center gap-2 rounded-full bg-primary text-[15px] font-semibold text-primary-foreground disabled:opacity-40"
       >
         <Sparkles className="h-4 w-4" aria-hidden="true" />
-        Generate 4 concepts
+        Generate concepts
       </button>
       <p className="-mt-2 text-center text-xs text-muted-foreground">Each one is checked and fixed before you see it.</p>
     </section>

@@ -189,7 +189,7 @@ export function ConceptTile({ concept, checks, onPick, compact, selected, label 
 
 export function ConceptGrid({ concepts, checks, onPick, offset = 0 }: { concepts: ConceptState[]; checks: CheckDef[]; onPick: (c: ConceptState) => void; offset?: number }) {
   return (
-    <div className="grid w-full grid-cols-2 gap-x-4 gap-y-6 sm:gap-x-5 lg:grid-cols-4">
+    <div className={cn("grid w-full grid-cols-2 gap-x-4 gap-y-6 sm:gap-x-5", concepts.length === 3 ? "sm:grid-cols-3" : "lg:grid-cols-4")}>
       {concepts.map((c) => (
         <ConceptTile key={c.index} concept={c} checks={checks} onPick={() => onPick(c)} label={`Concept ${offset + c.index + 1}`} />
       ))}

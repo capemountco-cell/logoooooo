@@ -79,7 +79,7 @@ export function BriefBatchTask({
 
   const status =
     job.phase === "briefing" ? "Reading brief…"
-      : job.phase === "generating" ? `Generating · ${job.concepts.filter((c) => c.stage === "passed" || c.stage === "failed").length} of 4 checked`
+      : job.phase === "generating" ? `Generating · ${job.concepts.filter((c) => c.stage === "passed" || c.stage === "failed").length} of ${job.concepts.length} checked`
         : job.phase === "done" ? (passed.length ? `${passed.length} passed every check` : "None passed — retry")
           : job.error ? "Failed" : "Waiting";
 
@@ -99,7 +99,7 @@ export function BriefBatchTask({
       </header>
 
       {job.concepts.length > 0 ? (
-        <div className="grid grid-cols-4 gap-1.5">
+        <div className="grid gap-1.5" style={{ gridTemplateColumns: `repeat(${job.concepts.length}, minmax(0, 1fr))` }}>
           {job.concepts.map((c) => (
             <ConceptTile key={c.index} concept={c} checks={job.checks} compact selected={c.index === selected} onPick={() => setSelected(c.index)} />
           ))}

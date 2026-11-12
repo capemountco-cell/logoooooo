@@ -78,7 +78,7 @@ export function BriefBatch({ onOpen }: { onOpen: (c: ConceptState, brief: LogoBr
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
             <h1 className="text-2xl font-semibold tracking-[-0.02em]">Batch</h1>
-            <p className="text-[13px] text-muted-foreground">Add a brief per logo. Each gets its own 4 checked concepts, made in parallel.</p>
+            <p className="text-[13px] text-muted-foreground">Add a brief per logo. Each gets its own round of checked concepts, made in parallel.</p>
           </div>
           <div className="flex flex-wrap gap-2">
             <label className={room <= 0 ? "pointer-events-none opacity-50" : ""}>
