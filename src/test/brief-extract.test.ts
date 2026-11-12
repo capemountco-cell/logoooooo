@@ -66,3 +66,13 @@ describe("/api/brief-extract", () => {
     expect((await post({ request: req([]) })).status).toBe(400);
   });
 });
+
+describe("irrelevant brief sections", () => {
+  it("tells the reader and the brief model to always leave out contest boilerplate", async () => {
+    const { BRIEF_INSTRUCTIONS } = await import("@/lib/brief");
+    expect(EXTRACT_INSTRUCTIONS).toContain("ALWAYS LEAVE OUT");
+    for (const s of ["1 x Logo", "Download template", "layered vectors", "convert text to outlines", "Generative AI use is not allowed"]) expect(EXTRACT_INSTRUCTIONS).toContain(s);
+    expect(EXTRACT_INSTRUCTIONS).not.toContain("and the deliverables");
+    expect(BRIEF_INSTRUCTIONS).toContain("Never carry over deliverables");
+  });
+});

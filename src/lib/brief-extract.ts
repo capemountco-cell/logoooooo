@@ -21,11 +21,16 @@ export function tileRects(height: number, tile: { height: number; overlap: numbe
   return Array.from({ length: n }, (_, i) => ({ y: Math.round(i * step), height: h }));
 }
 
+/** Platform boilerplate that never belongs in a logo brief (the user asked for these to be dropped). */
+export const IRRELEVANT_SECTIONS =
+  "contest deliverables (e.g. \"1 x Logo\", \"Download template\"), final files and file formats (layered vectors, AI, EPS, screen quality, PNG, JPG, PDF), instructions to convert text to outlines, and platform policies or design submission notes such as \"Generative AI use is not allowed in this category\"";
+
 export const EXTRACT_INSTRUCTIONS = [
   "You are reading a logo design brief that a client or a design platform has shared — as screenshots (in order, top to bottom, possibly overlapping) or as a document. Transcribe the brief faithfully as plain text so a designer can work from it.",
-  "Include, when present: the brand or business name EXACTLY as written (same spelling, case and punctuation), any slogan or tagline to include, what the business does, its audience and industry, the style the client wants, colours (named palettes, swatches you can see, and colours to avoid), every style slider as words with its position (e.g. \"Classic ↔ Modern: strongly classic\", \"Geometric ↔ Organic: middle\"), notes from the client, what to avoid, and the deliverables.",
+  "Include, when present: the brand or business name EXACTLY as written (same spelling, case and punctuation), any slogan or tagline to include, what the business does, its audience and industry, the style the client wants, colours (named palettes, swatches you can see, and colours to avoid), every style slider as words with its position (e.g. \"Classic ↔ Modern: strongly classic\", \"Geometric ↔ Organic: middle\"), notes from the client and what to avoid.",
   "For inspiration or example images, describe in a few words the style each one shows (e.g. \"vintage circular badge, distressed texture\", \"hand-lettered script\") without inventing names or text.",
   "Ignore everything that is not the brief: the platform's own branding, navigation, buttons, timers, deadlines, prices and prize badges, user names and avatars, ratings, translation pickers, submission rules, file-format lists, legal text and footers. Do not add advice or anything that is not in the brief.",
+  `ALWAYS LEAVE OUT these sections and lines entirely, even when they appear in the brief: ${IRRELEVANT_SECTIONS}.`,
   "Use short labelled lines (e.g. \"Name: …\", \"Industry: …\"). If something is unreadable, leave it out rather than guess.",
 ].join("\n\n");
 
