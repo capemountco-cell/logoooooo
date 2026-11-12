@@ -352,9 +352,9 @@ export function ResultWorkspace({ result, versions, onPickVersion, onNew, onReru
               label="Canvas"
               value={canvas}
               onChange={setCanvas}
-              options={[{ value: "board", label: `Board ${BOARD.width}×${BOARD.height}` }, { value: "logo", label: "Logo only" }]}
+              options={[{ value: "board", label: "Board" }, { value: "logo", label: "Logo" }]}
             />
-            <Segmented label="Format" value={format} onChange={setFormat} options={[{ value: "svg", label: "SVG" }, { value: "ai", label: "AI" }, { value: "png", label: "PNG" }]} />
+            <Segmented label="Format" value={format} onChange={setFormat} options={[{ value: "ai", label: "AI" }, { value: "svg", label: "SVG" }, { value: "png", label: "PNG" }]} />
             {format === "png" && (
               <div className="flex flex-col gap-2.5">
                 <div className="flex items-center justify-between gap-2">
@@ -410,7 +410,7 @@ export function ResultWorkspace({ result, versions, onPickVersion, onNew, onReru
               label="Canvas"
               value={canvas}
               onChange={setCanvas}
-              options={[{ value: "board", label: `Board ${BOARD.width}×${BOARD.height}` }, { value: "logo", label: "Logo only" }]}
+              options={[{ value: "board", label: "Board" }, { value: "logo", label: "Logo" }]}
             />
             <fieldset className="flex flex-col gap-2">
               <legend className="mb-2 text-xs font-semibold text-subtle">Format</legend>

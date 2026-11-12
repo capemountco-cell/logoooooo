@@ -208,7 +208,7 @@ export function PreviewCanvas({
                 <div className={cn("rounded-[4px] p-6", fill.className)} style={fill.style}>
                   <Vector result={result} ink="#000000" className="h-auto w-[min(420px,70vw)] max-w-full" />
                 </div>
-                <figcaption className="font-mono text-[11px] text-muted-foreground">Logo only</figcaption>
+                <figcaption className="font-mono text-[11px] text-muted-foreground">Logo · tight crop</figcaption>
               </figure>
             ) : (
               <div className="overflow-hidden rounded-[6px] bg-outline-paper px-6 py-10 sm:px-10">
