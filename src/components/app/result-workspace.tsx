@@ -10,7 +10,7 @@ import { BOARD } from "@/lib/board";
 import { savePng } from "@/lib/save-png";
 import { cn } from "@/lib/utils";
 import { modeInfo } from "./modes";
-import { PreviewCanvas, type CanvasBack, type PreviewView } from "./preview-canvas";
+import { PreviewCanvas, type PreviewView } from "./preview-canvas";
 import { Segmented } from "./segmented";
 
 export type Version = { name: string; src?: string; err?: string; match?: number | null };
@@ -53,7 +53,6 @@ const pct = (v: number) => `${(Math.floor(v * 1000) / 10).toFixed(1)}%`;
 
 export function ResultWorkspace({ result, versions, onPickVersion, onNew, onRerun, onFix, notice, onVariant, colorBusy }: Props) {
   const [view, setView] = useState<PreviewView>("artwork");
-  const [back, setBack] = useState<CanvasBack>("dots");
   const [format, setFormat] = useState<"svg" | "ai" | "png">("svg");
   const [canvas, setCanvas] = useState<Canvas>("board");
   const [pngBack, setPngBack] = useState<PngBack>("transparent");
@@ -175,7 +174,7 @@ export function ResultWorkspace({ result, versions, onPickVersion, onNew, onReru
       )}
       <div className="flex flex-1 flex-wrap gap-4 p-3 pb-28 sm:p-4 lg:pb-4">
         <section aria-label="Preview" className="flex min-w-0 flex-[999_1_560px] flex-col gap-3">
-          <PreviewCanvas result={result} view={view} onView={setView} back={back} onBack={setBack} onCopy={copy} copied={copied} board={canvas === "board" ? result.board.view : null} boardFill={pngBack === "brand" && brand ? brand : pngBack} />
+          <PreviewCanvas result={result} view={view} onView={setView} onCopy={copy} copied={copied} board={canvas === "board" ? result.board.view : null} boardFill={pngBack === "brand" && brand ? brand : pngBack} />
           <div className="flex flex-wrap items-center justify-between gap-2.5">
             <div className="flex flex-wrap gap-2">
               {onRerun && result.mode === "trace" && (

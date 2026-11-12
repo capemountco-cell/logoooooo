@@ -8,17 +8,12 @@ import { pathData } from "@/lib/vectorize";
 import { cn } from "@/lib/utils";
 
 export type PreviewView = "artwork" | "outlines" | "compare" | "code";
-export type CanvasBack = "dots" | "white" | "black";
 
 const ZOOMS = [0.5, 0.75, 1, 1.5, 2, 3, 4];
-const BACKS: { id: CanvasBack; label: string; swatch: string }[] = [
-  { id: "dots", label: "Dotted background", swatch: "#F6F6F4" },
-  { id: "white", label: "White background", swatch: "#FFFFFF" },
-  { id: "black", label: "Black background", swatch: "#111111" },
-];
 
-function backClass(back: CanvasBack) {
-  return back === "black" ? "bg-[#111111]" : back === "white" ? "bg-white" : "bg-dots-light";
+/** The artboard's background as it will export: checkerboard for transparent, white or the brand colour. */
+function artboard(fill: string) {
+  return { className: fill === "transparent" ? "checker" : fill === "white" ? "bg-white" : "", style: fill.startsWith("#") ? { background: fill } : {} };
 }
 
 /**
@@ -73,8 +68,8 @@ export const OUTLINE: Record<OutlineTier, { stroke: number; dash: string | undef
   small: { stroke: 1.1, dash: undefined, halo: 0 },
 };
 /** The Outlines view's display width, used to judge how big each contour looks. */
-const OUTLINE_WIDTH = 560;
-const OUTLINE_HEIGHT = 600;
+const OUTLINE_WIDTH = 520;
+const OUTLINE_HEIGHT = 560;
 
 /**
  * Blueprint-style outlines: the logo as a pale fill with a dashed outline, plus dashed guides
@@ -122,13 +117,11 @@ function Outlines({ result, className, points }: { result: LogoResult; className
 }
 
 export function PreviewCanvas({
-  result, view, onView, back, onBack, onCopy, copied, board, boardFill = "white",
+  result, view, onView, onCopy, copied, board, boardFill = "white",
 }: {
   result: LogoResult;
   view: PreviewView;
   onView: (view: PreviewView) => void;
-  back: CanvasBack;
-  onBack: (back: CanvasBack) => void;
   onCopy: () => void;
   copied: boolean;
   /** Show the artwork framed on the export board (the default export). */
@@ -145,10 +138,9 @@ export function PreviewCanvas({
     { id: "compare", label: "Compare" },
     { id: "code", label: "Code" },
   ];
-  const ink = back === "black" ? "#FFFFFF" : "#111111";
-  const art = "h-auto w-[min(360px,70vw)] max-w-full";
+  const fill = artboard(boardFill);
   return (
-    <div className={cn("relative flex min-h-[340px] flex-1 flex-col overflow-hidden rounded-[18px] border border-border sm:min-h-[600px]", view === "code" ? "bg-card" : view === "outlines" ? "bg-outline-paper" : backClass(back))}>
+    <div className={cn("relative flex min-h-[340px] flex-1 flex-col overflow-hidden rounded-[18px] border border-border sm:min-h-[600px]", view === "code" ? "bg-card" : "bg-background")}>
       <div className="absolute inset-x-3 top-3 z-10 flex flex-wrap items-start justify-between gap-2">
         <div role="tablist" aria-label="View" className="flex gap-0.5 rounded-xl border border-border bg-card p-[3px] shadow-[0_2px_8px_rgba(0,0,0,0.06)]">
           {views.map((t) => (
@@ -191,23 +183,6 @@ export function PreviewCanvas({
                 Points
               </button>
             )}
-            {view === "artwork" && (
-              <div role="radiogroup" aria-label="Canvas background" className="hidden items-center sm:flex gap-1 rounded-xl border border-border bg-card px-[5px] py-[3px] shadow-[0_2px_8px_rgba(0,0,0,0.06)]">
-                {BACKS.map((b) => (
-                  <button
-                    key={b.id}
-                    type="button"
-                    role="radio"
-                    aria-checked={back === b.id}
-                    aria-label={b.label}
-                    onClick={() => onBack(b.id)}
-                    className="inline-flex h-[34px] w-[30px] items-center justify-center"
-                  >
-                    <span className={cn("h-6 w-6 rounded-full", back === b.id ? "ring-2 ring-blue" : "border border-line")} style={{ background: b.swatch }} />
-                  </button>
-                ))}
-              </div>
-            )}
           </div>
         )}
       </div>
@@ -218,11 +193,8 @@ export function PreviewCanvas({
             {view === "artwork" && board ? (
               <figure className="m-0 flex flex-col items-center gap-2">
                 <div
-                  className={cn(
-                    "relative w-[min(560px,78vw)] overflow-hidden rounded-[4px] shadow-[0_0_0_1px_rgba(0,0,0,0.12),0_12px_32px_rgba(0,0,0,0.08)]",
-                    boardFill === "transparent" ? "checker" : boardFill === "white" ? "bg-white" : "",
-                  )}
-                  style={{ aspectRatio: `${BOARD.width} / ${BOARD.height}`, ...(boardFill.startsWith("#") ? { background: boardFill } : {}) }}
+                  className={cn("relative w-[min(560px,78vw)] overflow-hidden rounded-[4px]", fill.className)}
+                  style={{ aspectRatio: `${BOARD.width} / ${BOARD.height}`, ...fill.style }}
                 >
                   <Vector result={result} ink="#000000" frame={board} className="absolute inset-0 h-full w-full" />
                 </div>
@@ -231,9 +203,17 @@ export function PreviewCanvas({
                 </figcaption>
               </figure>
             ) : view === "artwork" ? (
-              <Vector result={result} ink={ink} className={art} />
+              // Logo only: the tight crop on its own artboard, so black logos stay visible on the black canvas.
+              <figure className="m-0 flex flex-col items-center gap-2">
+                <div className={cn("rounded-[4px] p-6", fill.className)} style={fill.style}>
+                  <Vector result={result} ink="#000000" className="h-auto w-[min(420px,70vw)] max-w-full" />
+                </div>
+                <figcaption className="font-mono text-[11px] text-muted-foreground">Logo only</figcaption>
+              </figure>
             ) : (
-              <Outlines result={result} className="h-auto max-h-[60vh] w-[min(560px,82vw)] max-w-full" points={points} />
+              <div className="overflow-hidden rounded-[6px] bg-outline-paper px-6 py-10 sm:px-10">
+                <Outlines result={result} className="h-auto max-h-[56vh] w-[min(520px,74vw)] max-w-full" points={points} />
+              </div>
             )}
           </div>
         </div>
