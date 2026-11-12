@@ -34,7 +34,7 @@ type Props = {
 
 const SIZES = [1024, 2048, 4096] as const;
 const BOARD_SIZES = [BOARD.width, BOARD.width * 2, BOARD.width * 3] as const;
-type Format = "svg" | "png" | "png-white" | "png-brand";
+type Format = "svg" | "ai" | "png" | "png-white" | "png-brand";
 type PngBack = "transparent" | "white" | "brand";
 
 function Stat({ label, value, extra }: { label: string; value: string | number; extra?: string | undefined }) {
@@ -54,7 +54,7 @@ const pct = (v: number) => `${(Math.floor(v * 1000) / 10).toFixed(1)}%`;
 export function ResultWorkspace({ result, versions, onPickVersion, onNew, onRerun, onFix, notice, onVariant, colorBusy }: Props) {
   const [view, setView] = useState<PreviewView>("artwork");
   const [back, setBack] = useState<CanvasBack>("dots");
-  const [format, setFormat] = useState<"svg" | "png">("svg");
+  const [format, setFormat] = useState<"svg" | "ai" | "png">("svg");
   const [canvas, setCanvas] = useState<Canvas>("board");
   const [pngBack, setPngBack] = useState<PngBack>("transparent");
   const [sizes, setSizes] = useState<Record<Canvas, number>>({ board: BOARD.width, logo: result.pngs.size });
@@ -76,7 +76,7 @@ export function ResultWorkspace({ result, versions, onPickVersion, onNew, onReru
   const size = sizes[canvas];
   const key = (c: Canvas, s: number) => `${c}:${s}`;
   const defaults = (r: LogoResult): Record<string, PngPair> => ({ [key("board", BOARD.width)]: r.board.pngs, [key("logo", r.pngs.size)]: r.pngs });
-  const files = { board: { svg: result.board.svgFile }, logo: { svg: result.svgFile } };
+  const files = { board: { svg: result.board.svgFile, ai: result.board.aiFile }, logo: { svg: result.svgFile, ai: result.aiFile } };
 
   // A new result starts over with its own prepared files.
   useEffect(() => {
@@ -117,9 +117,9 @@ export function ResultWorkspace({ result, versions, onPickVersion, onNew, onReru
   // Must run straight from the tap: mobile sharing refuses a share started after an await.
   const save = (f: Format, c: Canvas, pngs: PngPair | undefined) => {
     setSaveError(null);
-    if (f === "svg") {
-      saveLogoSvg(files[c].svg).catch((e: unknown) => {
-        if (!(e instanceof Error && e.name === "AbortError")) setSaveError("The SVG could not be saved. Try again.");
+    if (f === "svg" || f === "ai") {
+      saveLogoSvg(files[c][f]).catch((e: unknown) => {
+        if (!(e instanceof Error && e.name === "AbortError")) setSaveError(`The ${f === "ai" ? "Illustrator file" : "SVG"} could not be saved. Try again.`);
       });
       return;
     }
@@ -340,7 +340,7 @@ export function ResultWorkspace({ result, versions, onPickVersion, onNew, onReru
               onChange={setCanvas}
               options={[{ value: "board", label: `Board ${BOARD.width}×${BOARD.height}` }, { value: "logo", label: "Logo only" }]}
             />
-            <Segmented label="Format" value={format} onChange={setFormat} options={[{ value: "svg", label: "SVG" }, { value: "png", label: "PNG" }]} />
+            <Segmented label="Format" value={format} onChange={setFormat} options={[{ value: "svg", label: "SVG" }, { value: "ai", label: "AI" }, { value: "png", label: "PNG" }]} />
             {format === "png" && (
               <div className="flex flex-col gap-2.5">
                 <div className="flex items-center justify-between gap-2">
@@ -356,17 +356,19 @@ export function ResultWorkspace({ result, versions, onPickVersion, onNew, onReru
             <button
               type="button"
               disabled={(format === "png" && (!prepared[key(canvas, size)] || preparing)) || saving}
-              onClick={() => save(format === "svg" ? "svg" : pngBack === "white" ? "png-white" : pngBack === "brand" ? "png-brand" : "png", canvas, prepared[key(canvas, size)])}
+              onClick={() => save(format !== "png" ? format : pngBack === "white" ? "png-white" : pngBack === "brand" ? "png-brand" : "png", canvas, prepared[key(canvas, size)])}
               className="inline-flex h-[50px] items-center justify-center gap-2.5 rounded-[13px] bg-primary text-[15px] font-semibold text-primary-foreground disabled:opacity-50"
             >
               <Download className="h-[18px] w-[18px]" aria-hidden="true" />
-              {format === "png" && preparing ? "Preparing PNG…" : format === "png" ? "Download PNG" : "Download SVG"}
+              {format === "png" && preparing ? "Preparing PNG…" : format === "png" ? "Download PNG" : format === "ai" ? "Download AI" : "Download SVG"}
             </button>
             <p className="text-center text-xs text-muted-foreground">
               {canvas === "board" && <>Centred on a {BOARD.width} × {BOARD.height} board. </>}
               {format === "png"
                 ? "Rendered from the vector, so it stays crisp at any size."
-                : result.variant === "color"
+                : format === "ai"
+                  ? "Adobe Illustrator file · every outline opens as an editable path."
+                  : result.variant === "color"
                   ? `${shapeLayers.length} colour shapes${gradientCount ? `, ${gradientCount} gradients` : ""}${shadeCount ? `, ${shadeCount} soft highlights & shadows` : ""} · opens in Figma, Illustrator and Canva.`
                   : "One clean path · opens in Figma, Illustrator and Canva."}
             </p>
@@ -401,6 +403,7 @@ export function ResultWorkspace({ result, versions, onPickVersion, onNew, onReru
               {(
                 [
                   ["svg", "SVG vector", "Infinitely sharp · for Figma, Canva, print"],
+                  ["ai", "Adobe Illustrator (.ai)", "Editable paths · opens in Illustrator"],
                   ["png", "PNG · transparent", `${sheetDims} · for socials and slides`],
                   ["png-white", "PNG · white background", `${sheetDims} · for documents and email`],
                   ...(brand ? ([["png-brand", "PNG · brand background", `${sheetDims} · on your logo's own colour`]] as const) : []),
@@ -415,9 +418,9 @@ export function ResultWorkspace({ result, versions, onPickVersion, onNew, onReru
                 </label>
               ))}
             </fieldset>
-            <button type="button" disabled={saving || (sheetFormat !== "svg" && !sheetPngs)} onClick={() => save(sheetFormat, canvas, sheetPngs)} className="inline-flex h-[54px] items-center justify-center gap-2.5 rounded-[15px] bg-primary text-base font-semibold text-primary-foreground disabled:opacity-50">
+            <button type="button" disabled={saving || (sheetFormat !== "svg" && sheetFormat !== "ai" && !sheetPngs)} onClick={() => save(sheetFormat, canvas, sheetPngs)} className="inline-flex h-[54px] items-center justify-center gap-2.5 rounded-[15px] bg-primary text-base font-semibold text-primary-foreground disabled:opacity-50">
               <Download className="h-[18px] w-[18px]" aria-hidden="true" />
-              {saving ? "Opening save options…" : sheetFormat === "svg" ? "Save SVG" : "Save PNG"}
+              {saving ? "Opening save options…" : sheetFormat === "svg" ? "Save SVG" : sheetFormat === "ai" ? "Save AI" : "Save PNG"}
             </button>
             <button type="button" onClick={copy} className="inline-flex h-12 items-center justify-center gap-2.5 rounded-[14px] border border-border bg-card text-[15px] font-medium">
               <Copy className="h-4 w-4" aria-hidden="true" />

@@ -1,10 +1,16 @@
 import { downloadFile, isMobileSaveDevice } from "@/lib/save-png";
+import { svgToAi } from "@/lib/ai-export";
 
 export function logoFile(href: string, name: string, type: string) {
   const bin = href.startsWith("data:") && href.includes(";base64,")
     ? Uint8Array.from(atob(href.split(",")[1] ?? ""), (c) => c.charCodeAt(0))
     : new TextEncoder().encode(href);
   return new File([bin], name, { type });
+}
+
+/** The Illustrator file for an SVG: PDF-compatible .ai, which Illustrator opens as editable paths. */
+export function aiFile(svg: string, name: string) {
+  return new File([new TextEncoder().encode(svgToAi(svg, name))], `${name}.ai`, { type: "application/pdf" });
 }
 
 export async function flattenLogo(file: File): Promise<File> {
@@ -24,6 +30,7 @@ export async function flattenLogo(file: File): Promise<File> {
   } finally { bitmap.close(); }
 }
 
+/** Saves a vector file (SVG or AI): share sheet on mobile, download on desktop. */
 export function saveLogoSvg(file: File) {
   if (isMobileSaveDevice() && navigator.canShare?.({ files: [file] }) && typeof navigator.share === "function") {
     return navigator.share({ files: [file] });
