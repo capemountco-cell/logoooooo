@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { AlertCircle, ArrowLeft, ArrowUp, Copy, Download, Plus, RotateCw, Type } from "lucide-react";
+import { AlertCircle, ArrowLeft, ArrowUp, ChevronDown, Copy, Download, Plus, RotateCw, Type } from "lucide-react";
 import { Drawer, DrawerContent, DrawerDescription, DrawerTitle } from "@/components/ui/drawer";
 import { renderPngPair } from "@/lib/logo-convert";
 import { saveLogoSvg } from "@/lib/logo-files";
@@ -65,6 +65,7 @@ export function ResultWorkspace({ result, versions, onPickVersion, onNew, onReru
   const [sheet, setSheet] = useState(false);
   const [sheetFormat, setSheetFormat] = useState<Format>("svg");
   const [fix, setFix] = useState("");
+  const [detailsOpen, setDetailsOpen] = useState(false);
   const stats = useMemo(() => outlineStats(result.paths), [result.paths]);
   const shapeLayers = result.layers.filter((l) => !isOverlay(l.fill));
   const gradientCount = shapeLayers.filter((l) => l.fill.type !== "solid").length;
@@ -215,6 +216,63 @@ export function ResultWorkspace({ result, versions, onPickVersion, onNew, onReru
         </section>
 
         <aside aria-label="Details and export" className="flex max-w-full flex-[1_1_300px] flex-col gap-3">
+          {/* Accuracy first, collapsed to the score: outline details open on demand. */}
+          <section className={cn("flex flex-col gap-3.5 rounded-[18px] border p-[18px]", drifted ? "border-warn-border bg-warn-bg" : "border-border bg-card")}>
+            <div className="flex items-center justify-between gap-2">
+              <h2 className="text-sm font-semibold">{result.accuracy?.kind === "shape" ? "Shape match" : "Accuracy"}</h2>
+              <div className="flex items-center gap-1.5">
+                <span className="rounded-md bg-muted px-2 py-1 font-mono text-[11px] text-subtle">{info.ai ? "AI REDRAW" : "NO AI"}</span>
+                <button
+                  type="button"
+                  onClick={() => setDetailsOpen((o) => !o)}
+                  aria-expanded={detailsOpen}
+                  aria-controls="accuracy-details"
+                  aria-label={detailsOpen ? "Hide outline details" : "Show outline details"}
+                  className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground hover:text-foreground"
+                >
+                  <ChevronDown className={cn("h-4 w-4 transition-transform", detailsOpen && "rotate-180")} aria-hidden="true" />
+                </button>
+              </div>
+            </div>
+            {result.accuracy ? (
+              <>
+                <div className="flex items-baseline gap-2">
+                  <span className={cn("text-[40px] font-semibold tracking-[-0.03em]", drifted && "text-warn")}>{pct(result.accuracy.value)}</span>
+                  <span className={cn("text-[13px]", drifted ? "text-warn" : "text-muted-foreground")}>
+                    {result.accuracy.kind === "pixel" ? "pixel match with your file" : result.accuracy.kind === "color" ? "colour match with your file" : "match with your original"}
+                  </span>
+                </div>
+                <div aria-hidden="true" className="h-1.5 overflow-hidden rounded-full bg-muted">
+                  <div className={cn("h-full", drifted ? "bg-warn" : "bg-foreground")} style={{ width: pct(result.accuracy.value) }} />
+                </div>
+                {drifted && (
+                  <div role="status" className="flex flex-col gap-2.5">
+                    <p className="flex items-start gap-2 text-[13px] leading-snug text-warn">
+                      <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+                      The AI changed some proportions of your mark. An exact trace keeps it identical.
+                    </p>
+                    {onRerun && (
+                      <div className="grid grid-cols-2 gap-2">
+                        <button type="button" onClick={() => onRerun("trace")} className="h-11 rounded-xl bg-primary text-sm font-semibold text-primary-foreground">Use exact trace</button>
+                        <button type="button" onClick={() => onRerun("recreate")} className="h-11 rounded-xl border border-warn-border bg-card text-sm font-medium">Try again</button>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </>
+            ) : (
+              <p className="text-[13px] text-muted-foreground">
+                {result.original ? "This is a new design, so it isn't scored against the original." : "Opened from Recent."}
+              </p>
+            )}
+            <dl id="accuracy-details" hidden={!detailsOpen} className="grid grid-cols-2 gap-2.5">
+              <Stat label="ANCHORS" value={stats.anchors.length} />
+              <Stat label="SHAPES" value={stats.shapes} extra={stats.holes ? `${stats.holes} hole${stats.holes === 1 ? "" : "s"}` : undefined} />
+              <Stat label="CURVES" value={stats.curves} />
+              <Stat label="STRAIGHT" value={stats.lines} />
+            </dl>
+          </section>
+
           {(onVariant || result.advice) && (
             <section aria-labelledby="colour-h" className="flex flex-col gap-3 rounded-[18px] border border-border bg-card p-[18px]">
               <div className="flex items-center justify-between gap-2">
@@ -258,49 +316,6 @@ export function ResultWorkspace({ result, versions, onPickVersion, onNew, onReru
             </section>
           )}
 
-          <section className={cn("flex flex-col gap-3.5 rounded-[18px] border p-[18px]", drifted ? "border-warn-border bg-warn-bg" : "border-border bg-card")}>
-            <div className="flex items-center justify-between">
-              <h2 className="text-sm font-semibold">{result.accuracy?.kind === "shape" ? "Shape match" : "Accuracy"}</h2>
-              <span className="rounded-md bg-muted px-2 py-1 font-mono text-[11px] text-subtle">{info.ai ? "AI REDRAW" : "NO AI"}</span>
-            </div>
-            {result.accuracy ? (
-              <>
-                <div className="flex items-baseline gap-2">
-                  <span className={cn("text-[40px] font-semibold tracking-[-0.03em]", drifted && "text-warn")}>{pct(result.accuracy.value)}</span>
-                  <span className={cn("text-[13px]", drifted ? "text-warn" : "text-muted-foreground")}>
-                    {result.accuracy.kind === "pixel" ? "pixel match with your file" : result.accuracy.kind === "color" ? "colour match with your file" : "match with your original"}
-                  </span>
-                </div>
-                <div aria-hidden="true" className="h-1.5 overflow-hidden rounded-full bg-muted">
-                  <div className={cn("h-full", drifted ? "bg-warn" : "bg-foreground")} style={{ width: pct(result.accuracy.value) }} />
-                </div>
-                {drifted && (
-                  <div role="status" className="flex flex-col gap-2.5">
-                    <p className="flex items-start gap-2 text-[13px] leading-snug text-warn">
-                      <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
-                      The AI changed some proportions of your mark. An exact trace keeps it identical.
-                    </p>
-                    {onRerun && (
-                      <div className="grid grid-cols-2 gap-2">
-                        <button type="button" onClick={() => onRerun("trace")} className="h-11 rounded-xl bg-primary text-sm font-semibold text-primary-foreground">Use exact trace</button>
-                        <button type="button" onClick={() => onRerun("recreate")} className="h-11 rounded-xl border border-warn-border bg-card text-sm font-medium">Try again</button>
-                      </div>
-                    )}
-                  </div>
-                )}
-              </>
-            ) : (
-              <p className="text-[13px] text-muted-foreground">
-                {result.original ? "This is a new design, so it isn't scored against the original." : "Opened from Recent."}
-              </p>
-            )}
-            <dl className="grid grid-cols-2 gap-2.5">
-              <Stat label="ANCHORS" value={stats.anchors.length} />
-              <Stat label="SHAPES" value={stats.shapes} extra={stats.holes ? `${stats.holes} hole${stats.holes === 1 ? "" : "s"}` : undefined} />
-              <Stat label="CURVES" value={stats.curves} />
-              <Stat label="STRAIGHT" value={stats.lines} />
-            </dl>
-          </section>
 
           {versions.length > 0 && (
             <section className="flex flex-col gap-2.5 rounded-[18px] border border-border bg-card p-[18px]">
