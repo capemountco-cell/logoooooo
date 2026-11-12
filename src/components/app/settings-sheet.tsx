@@ -17,6 +17,11 @@ export function loadSettings(): AppSettings {
     return DEFAULT_SETTINGS;
   }
 }
+/** Concepts per round for the current settings (3 with Grok off, 4 with it on). */
+export function roundSize() {
+  return loadSettings().grok ? 4 : 3;
+}
+
 function saveSettings(s: AppSettings) {
   try {
     globalThis.localStorage?.setItem(KEY, JSON.stringify(s));
@@ -36,7 +41,7 @@ export function SettingsSheet() {
   };
   const rows: { key: keyof AppSettings; title: string; note: string; soon?: boolean }[] = [
     { key: "autoRefs", title: "Find references automatically", note: "Before each first round, LOGOO searches for reference logos and picks the best for style, concept and lettering. Review them after any round." },
-    { key: "grok", title: "Use Grok for 2 of 4 concepts", note: "Off: all four concepts come from OpenAI. On: two come from Grok for more variety." },
+    { key: "grok", title: "Use Grok too", note: "Off: each round is 3 concepts from OpenAI. On: 4 concepts per round — 2 from OpenAI, 2 from Grok — for more variety." },
     { key: "identity", title: "Brand identity package", note: "Palette, type pairing, logo versions, favicon and social avatars.", soon: true },
     { key: "mockups", title: "Mockups", note: "Your logo on cards, signage and merchandise. Uses extra image generations.", soon: true },
   ];

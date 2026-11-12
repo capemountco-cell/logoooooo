@@ -59,8 +59,8 @@ describe("concept prompts", () => {
   it("runs two concepts on OpenAI and two on Grok", () => {
     expect(CONCEPT_PROVIDERS.filter((p) => p === "openai")).toHaveLength(2);
     expect(CONCEPT_PROVIDERS.filter((p) => p === "grok")).toHaveLength(2);
-    // Grok is off by default: all four from OpenAI.
-    expect(conceptProviders(false)).toEqual(["openai", "openai", "openai", "openai"]);
+    // Grok is off by default: a round is three concepts, all from OpenAI.
+    expect(conceptProviders(false)).toEqual(["openai", "openai", "openai"]);
     expect(conceptProviders(true)).toEqual(CONCEPT_PROVIDERS);
   });
 
@@ -78,7 +78,7 @@ describe("concept prompts", () => {
     const p = buildConceptPrompt(brief(), [{ role: "typography", description: "heavy condensed slab serif" }], 1);
     expect(p).toContain("TYPOGRAPHY ONLY: heavy condensed slab serif");
     expect(p).toContain("never reproduce a reference's symbol, wording or overall design");
-    expect(p).toContain("concept 2 of 4");
+    expect(p).toContain("concept 2)");
   });
 
   it("uses initials for lettermarks and no text for symbol-only types", () => {

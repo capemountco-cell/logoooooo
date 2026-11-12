@@ -95,7 +95,7 @@ describe("/api/concept", () => {
     const body = calls[0]!.body as { model: string; prompt: string; stream: boolean };
     expect(body.model).toBe("gpt-image-2");
     expect(body.prompt).toContain('the brand name "Ember" exactly once');
-    expect(body.prompt).toContain("concept 3 of 4");
+    expect(body.prompt).toContain("concept 3)");
     expect(body.stream).toBe(true);
   });
 

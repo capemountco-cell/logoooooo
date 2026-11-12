@@ -163,7 +163,7 @@ export function ReferenceReview({
 
         <button type="button" disabled={busy || Boolean(working)} onClick={() => { onOpenChange(false); onGenerate(); }} className="mt-auto inline-flex h-12 items-center justify-center gap-2 rounded-full bg-primary text-[15px] font-semibold text-primary-foreground disabled:opacity-40">
           <Sparkles className="h-4 w-4" aria-hidden="true" />
-          Generate 4 more with these
+          Generate more with these
         </button>
       </SheetContent>
     </Sheet>

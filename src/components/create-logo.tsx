@@ -8,9 +8,10 @@ import { useBriefJob } from "@/hooks/use-brief-job";
 import type { PreparedRef } from "@/lib/concept-client";
 import type { ConceptState } from "@/lib/concept-pipeline";
 import { logoType, type LogoBrief } from "@/lib/brief";
+import { roundSize } from "@/components/app/settings-sheet";
 
 /**
- * Concepts first: brief in, four checked logo concepts out. "4 more" stacks a new round on top;
+ * Concepts first: brief in, a round of checked logo concepts out (3, or 4 with Grok on). "More" stacks a new round on top;
  * earlier rounds stay. The brief can be reviewed before or edited after generating.
  */
 export function CreateLogo({ onOpen }: { onOpen: (c: ConceptState, brief: LogoBrief) => void }) {
@@ -65,7 +66,7 @@ export function CreateLogo({ onOpen }: { onOpen: (c: ConceptState, brief: LogoBr
               ) : (
                 <button type="button" onClick={() => void job.generate()} className="inline-flex h-10 items-center gap-1.5 rounded-full bg-primary px-4 text-sm font-semibold text-primary-foreground">
                   <RotateCcw className="h-4 w-4" aria-hidden="true" />
-                  4 more concepts
+                  {roundSize()} more concepts
                 </button>
               )}
             </div>
@@ -75,10 +76,10 @@ export function CreateLogo({ onOpen }: { onOpen: (c: ConceptState, brief: LogoBr
             {running && job.refStatus === "searching"
               ? "Finding reference logos for style, concept and lettering…"
               : running
-              ? `Drawing and checking round ${job.rounds.length} · ${settledNow} of 4 done. Concepts appear only once they pass every check.`
+              ? `Drawing and checking round ${job.rounds.length} · ${settledNow} of ${current?.concepts.length ?? roundSize()} done. Concepts appear only once they pass every check.`
               : passed
                 ? `${passed} concept${passed === 1 ? "" : "s"} passed every check. Pick one to trace and export it.`
-                : "No concept passed every check this time. Try 4 more, or adjust the brief."}
+                : "No concept passed every check this time. Try more, or adjust the brief."}
           </p>
 
           {job.rounds.map((round, i) => {
@@ -89,7 +90,7 @@ export function CreateLogo({ onOpen }: { onOpen: (c: ConceptState, brief: LogoBr
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   {job.rounds.length > 1 ? (
                     <h2 className="font-mono text-[11px] tracking-[0.06em] text-muted-foreground uppercase">
-                      Round {n} · {ok} of 4 passed
+                      Round {n} · {ok} of {round.concepts.length} passed
                     </h2>
                   ) : <span />}
                   {round.refs.length > 0 && (
@@ -103,7 +104,7 @@ export function CreateLogo({ onOpen }: { onOpen: (c: ConceptState, brief: LogoBr
                     </button>
                   )}
                 </div>
-                <ConceptGrid concepts={round.concepts} checks={round.checks} offset={(n - 1) * 4} onPick={(c) => onOpen(c, b)} />
+                <ConceptGrid concepts={round.concepts} checks={round.checks} offset={job.rounds.slice(i + 1).reduce((t, r) => t + r.concepts.length, 0)} onPick={(c) => onOpen(c, b)} />
               </section>
             );
           })}
@@ -142,7 +143,7 @@ export function CreateLogo({ onOpen }: { onOpen: (c: ConceptState, brief: LogoBr
         <>
           <div className="flex max-w-[760px] flex-col gap-3 sm:items-center sm:text-center">
             <h1 className="text-balance text-[34px] font-semibold leading-[1.05] tracking-[-0.035em] sm:text-[56px]">Logo concepts from a brief.</h1>
-            <p className="text-[15px] text-muted-foreground sm:text-base">Four concepts per round, each checked and fixed before you see it. Export as SVG, AI or PNG.</p>
+            <p className="text-[15px] text-muted-foreground sm:text-base">Rounds of concepts, each checked and fixed before you see it. Export as SVG, AI or PNG.</p>
           </div>
           <BriefComposer
             notes={notes}

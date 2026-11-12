@@ -3,14 +3,15 @@ import { logoType, SHOWS_NAME, type LogoBrief, type ReferenceNote } from "@/lib/
 import { briefHexes } from "@/lib/palette";
 
 export type Provider = "openai" | "grok";
-/** Four concepts per brief: two from each model, so the set has real variety. */
+/** With Grok on: four concepts per round, two from each model, so the set has real variety. */
 export const CONCEPT_PROVIDERS: Provider[] = ["openai", "grok", "openai", "grok"];
 /**
- * Which model draws each of the 4 concepts. Grok is off by default (live runs failed it
- * constantly), so all four come from OpenAI unless the "Use Grok" setting is on.
+ * Which model draws each concept in a round. Grok is off by default (live runs failed it
+ * constantly): then a round is three OpenAI concepts. With the "Use Grok" setting on it is four,
+ * two from each model.
  */
 export function conceptProviders(useGrok: boolean): Provider[] {
-  return useGrok ? CONCEPT_PROVIDERS : ["openai", "openai", "openai", "openai"];
+  return useGrok ? CONCEPT_PROVIDERS : ["openai", "openai", "openai"];
 }
 
 /** One creative lean per concept, always inside the brief's personality. */
@@ -111,7 +112,7 @@ export function buildConceptPrompt(brief: LogoBrief, references: ReferenceNote[]
     facts.join("\n"),
     refs,
     ...textRules(brief),
-    `CREATIVE DIRECTION (concept ${index + 1} of 4): ${DIRECTIONS[index % DIRECTIONS.length]} Stay true to the brief's personality.`,
+    `CREATIVE DIRECTION (concept ${index + 1}): ${DIRECTIONS[index % DIRECTIONS.length]} Stay true to the brief's personality.`,
     DESIGN_RULES,
     OUTPUT_RULES,
   ]
