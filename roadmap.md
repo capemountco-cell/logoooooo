@@ -23,6 +23,7 @@
 - [x] Paste a brief straight from a web page: menus, footers, links, cookie/legal text and repeats are stripped before the AI reads it.
 - [x] All-black, concepts-first redesign with the LOGOO wordmark: Generate concepts in one step, rounds that stack, artwork-first tiles with collapsible checks.
 - [x] Automatic reference images: Brave Image Search (Openverse fallback), AI picks one per role, review panel after any round to remove, swap, re-role, upload or search again.
+- [x] Upload a brief as a screenshot (tall phone captures cut into readable sections), PDF or text file, or paste/drop a screenshot; it is read into the brief box to check before generating.
 - [ ] Live-test generation with real OpenAI and xAI keys; tune check thresholds and prompts on real outputs.
 - [ ] Brand identity package (palette, type pairing, logo versions, favicon, social) behind its setting.
 - [ ] Mockups behind their setting.

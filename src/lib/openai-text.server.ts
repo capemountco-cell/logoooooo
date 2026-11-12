@@ -4,7 +4,8 @@ export const TEXT_MODEL = "gpt-5-nano";
 
 export type ContentPart =
   | { type: "input_text"; text: string }
-  | { type: "input_image"; image_url: string; detail: "low" | "high" | "auto" };
+  | { type: "input_image"; image_url: string; detail: "low" | "high" | "auto" }
+  | { type: "input_file"; filename: string; file_data: string };
 
 type Options = {
   instructions: string;
