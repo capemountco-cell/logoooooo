@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Settings } from "lucide-react";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Switch } from "@/components/ui/switch";
+import { clearSaved } from "@/lib/persist";
 
 export type AppSettings = { autoRefs: boolean; grok: boolean; identity: boolean; mockups: boolean };
 const KEY = "vectorthis.settings.v1";
@@ -71,7 +72,27 @@ export function SettingsSheet() {
             </li>
           ))}
         </ul>
+        <SavedWork />
       </SheetContent>
     </Sheet>
+  );
+}
+
+/** Autosaved work lives only on this device; clearing needs a second tap. */
+function SavedWork() {
+  const [confirm, setConfirm] = useState(false);
+  return (
+    <div className="flex flex-col gap-2 rounded-[14px] border border-border p-3.5">
+      <span className="text-[15px] font-semibold">Saved work</span>
+      <span className="text-[13px] text-muted-foreground">Briefs, concepts and batch jobs save automatically on this device, so a crash or refresh never loses them. Nothing is uploaded.</span>
+      {confirm ? (
+        <div className="flex gap-2">
+          <button type="button" onClick={() => { void clearSaved().then(() => window.location.reload()); }} className="h-10 flex-1 rounded-full bg-destructive text-sm font-semibold text-destructive-foreground">Clear everything</button>
+          <button type="button" onClick={() => setConfirm(false)} className="h-10 flex-1 rounded-full border border-border text-sm font-medium">Cancel</button>
+        </div>
+      ) : (
+        <button type="button" onClick={() => setConfirm(true)} className="h-10 rounded-full border border-border text-sm font-medium">Clear saved work</button>
+      )}
+    </div>
   );
 }

@@ -63,7 +63,7 @@ export function stageLabel(c: ConceptState, total: number, notes = 0) {
     case "fixing": return failed ? `Fixing ${failed} issue${failed === 1 ? "" : "s"}` : "Fixing";
     case "waiting": return c.note || "Retrying shortly";
     case "passed": return notes ? `Passed · ${notes} note${notes === 1 ? "" : "s"}` : `Passed ${total}/${total}`;
-    case "failed": return c.note === "Stopped" ? "Stopped" : "Not shown";
+    case "failed": return c.note === "Stopped" || c.note === "Interrupted" ? c.note : "Not shown";
   }
 }
 

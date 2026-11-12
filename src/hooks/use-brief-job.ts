@@ -6,6 +6,7 @@ import { checklist, conceptProviders, requiredText, type CheckDef } from "@/lib/
 import { runConcept, type ConceptState } from "@/lib/concept-pipeline";
 import type { Candidate, SearchProvider } from "@/lib/reference-search";
 import { loadSettings } from "@/components/app/settings-sheet";
+import { loadSaved, restoreSnapshot, saveSoon, type JobSnapshot } from "@/lib/persist";
 
 export type JobPhase = "idle" | "briefing" | "brief" | "generating" | "done";
 
@@ -33,7 +34,21 @@ const notes = (refs: RefItem[]): ReferenceNote[] => refs.map((r) => ({ role: r.r
  * other. Before the first round the AI picks references itself; after any round the user can
  * review them (remove, swap, re-role, add) and the next round uses the edited set.
  */
-export function useBriefJob() {
+/** Pictures that must survive a reload are stored as data URLs (object URLs die with the page). */
+const toDataUrl = (blob: Blob) =>
+  new Promise<string>((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => resolve(String(r.result));
+    r.onerror = () => reject(new Error("Could not read the image."));
+    r.readAsDataURL(blob);
+  });
+
+/**
+ * `persistKey`: autosave this job on the device under that key and restore it on load (see
+ * persist.ts). `ready` turns true once restoring has finished; `restored` says whether there was
+ * saved work, so callers that auto-start (batch cards) don't start again over it.
+ */
+export function useBriefJob(persistKey?: string) {
   const [phase, setPhase] = useState<JobPhase>("idle");
   const [brief, setBrief] = useState<LogoBrief | null>(null);
   const [references, setReferences] = useState<ReferenceNote[]>([]);
@@ -49,6 +64,38 @@ export function useBriefJob() {
   const picked = useRef(false);
   const refsRef = useRef<RefItem[]>([]);
   refsRef.current = refs;
+  const [ready, setReady] = useState(!persistKey);
+  const [restored, setRestored] = useState(false);
+
+  // Restore saved work once, before anything else runs.
+  useEffect(() => {
+    if (!persistKey) return;
+    let live = true;
+    void loadSaved<JobSnapshot>(persistKey).then((raw) => {
+      if (!live) return;
+      const snap = restoreSnapshot(raw);
+      if (snap && (snap.brief || snap.rounds.length)) {
+        setPhase(snap.phase);
+        setBrief(snap.brief);
+        setReferences(snap.references);
+        setRefs(snap.refs);
+        setCandidates(snap.candidates);
+        setProvider(snap.provider);
+        setRounds(snap.rounds);
+        picked.current = snap.picked;
+        setRestored(true);
+      }
+      setReady(true);
+    });
+    return () => { live = false; };
+  }, [persistKey]);
+
+  // Autosave every change (debounced), once restoring is done.
+  useEffect(() => {
+    if (!persistKey || !ready) return;
+    const snap: JobSnapshot = { v: 1, phase, brief, references, refs, candidates, provider, rounds, picked: picked.current };
+    saveSoon(persistKey, snap);
+  }, [persistKey, ready, phase, brief, references, refs, candidates, provider, rounds]);
 
   useEffect(() => () => controller.current?.abort(), []);
 
@@ -72,7 +119,8 @@ export function useBriefJob() {
     try {
       const out = await cleanBrief(text, uploads, abort.signal);
       if (abort.signal.aborted) return null;
-      const items: RefItem[] = uploads.map((u, i) => ({ id: u.id, role: u.role, description: out.references[i]?.description ?? "", image: u.preview, signature: u.signature, auto: false })).filter((r) => r.description);
+      const images = await Promise.all(uploads.map((u) => toDataUrl(u.file).catch(() => u.preview)));
+      const items: RefItem[] = uploads.map((u, i) => ({ id: u.id, role: u.role, description: out.references[i]?.description ?? "", image: images[i]!, signature: u.signature, auto: false })).filter((r) => r.description);
       setBrief(out.brief);
       setReferences(out.references);
       setRefs(items);
@@ -215,7 +263,7 @@ export function useBriefJob() {
 
   const latest = rounds[0];
   return {
-    phase, setPhase, brief, setBrief, references, rounds, error, makeBrief, generate, cancel,
+    phase, setPhase, brief, setBrief, references, rounds, error, makeBrief, generate, cancel, ready, restored,
     refs, candidates, provider, refStatus, removeRef, changeRole, useCandidate, addUpload, findNewRefs,
     /** The newest round (what batch cards show). */
     concepts: latest?.concepts ?? [],
