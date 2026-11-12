@@ -66,12 +66,12 @@ export function ConceptTile({ concept, checks, onPick, compact, selected, label 
         className={cn(
           "relative flex aspect-square w-full items-center justify-center overflow-hidden disabled:cursor-default",
           compact ? "rounded-[12px]" : "rounded-[18px]",
-          passed ? "bg-white" : "bg-field",
+          passed ? "bg-artboard" : "bg-field",
           selected && "ring-2 ring-foreground ring-offset-2 ring-offset-background",
         )}
       >
         {concept.image && !failed && (
-          <img src={concept.image} alt={passed ? `Logo ${name.toLowerCase()}` : ""} className={cn("h-full w-full object-contain transition-[filter,opacity,transform] duration-700", working && "scale-110 opacity-45 blur-2xl")} />
+          <img src={concept.image} alt={passed ? `Logo ${name.toLowerCase()}` : ""} className={cn("h-full w-full object-contain transition-[filter,opacity,transform] duration-700", passed && "mix-blend-multiply", working && "scale-110 opacity-45 blur-2xl")} />
         )}
         {working && (
           <span className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-black/30 text-center">

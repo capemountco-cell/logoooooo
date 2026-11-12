@@ -74,6 +74,7 @@
   --color-line-strong: var(--line-strong);
   --color-success: var(--success);
   --color-pending: var(--pending);
+  --color-artboard: var(--artboard);
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
 }
@@ -112,8 +113,12 @@
   --success: oklch(0.78 0.15 155);
   --pending: oklch(0.82 0.13 80);
   /* Outlines view: solid paper, pale logo fill, dashed dark-green outline (user's reference). */
-  --outline-paper: #f6f4f0;
-  --outline-fill: #e1e1df;
+  --outline-paper: #dededd;
+  --outline-fill: #c9c9c7;
+  /* Artboards behind logo artwork: a soft neutral grey that sits with the black UI and keeps
+     black logos visible (pure white only where it is the real export background). */
+  --artboard: #dcdcdb;
+  --artboard-alt: #cdcdcc;
   --outline-ink: #143f20;
   --warn: oklch(0.88 0.1 75);
   --warn-bg: oklch(0.25 0.05 70);
@@ -192,14 +197,14 @@
 }
 
 .bg-dots-light {
-  background-color: oklch(0.985 0.002 106.4);
+  background-color: var(--artboard);
   background-image: radial-gradient(var(--color-dot) 1px, transparent 1px);
   background-size: 18px 18px;
 }
 
-/* Transparency checkerboard: always light, like every design tool, so logos read as they will print. */
+/* Transparency checkerboard in the artboard greys, so transparent logos read on the black UI. */
 .checker {
-  background-color: #ffffff;
-  background-image: conic-gradient(#ececec 25%, transparent 0 50%, #ececec 0 75%, transparent 0);
+  background-color: var(--artboard);
+  background-image: conic-gradient(var(--artboard-alt) 25%, transparent 0 50%, var(--artboard-alt) 0 75%, transparent 0);
   background-size: 20px 20px;
 }
