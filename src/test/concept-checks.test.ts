@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { autoChecks, measureConcept } from "@/lib/concept-checks";
+import { autoChecks, despeckle, measureConcept } from "@/lib/concept-checks";
 import { normalizeBrief } from "@/lib/brief";
 import { checklist } from "@/lib/concept-prompt";
 import { decodePng } from "./decode-png";
@@ -46,7 +46,7 @@ describe("concept checks", () => {
     expect(failed(paint(256, 256, (x, y) => (disc(20, 128, 60)(x, y) ? [0, 0, 0] : null)), 256, 256)).toContain("margin");
     expect(failed(paint(256, 256, (x, y) => (disc(128, 128, 60)(x, y) ? [0, 0, 0] : [235, 225, 200])), 256, 256)).toContain("background");
     const specks = paint(256, 256, (x, y) => (disc(128, 128, 60)(x, y) || (x % 37 < 1.5 && y % 41 < 1.5) ? [0, 0, 0] : null));
-    expect(failed(specks, 256, 256)).toContain("clean");
+    expect(measureConcept(specks, 256, 256).specks).toBeGreaterThan(4);
   });
 
   it("catches hairline detail that vanishes when small", () => {
@@ -66,5 +66,40 @@ describe("concept checks", () => {
     const img = paint(256, 256, (x, y) => (disc(128, 128, 70)(x, y) ? [0, 0, 0] : null));
     const same = measureConcept(img, 256, 256).signature;
     expect(failed(img, 256, 256, [same])).toContain("original");
+  });
+});
+
+describe("real AI output", () => {
+  it("removes compression specks automatically, so a noisy concept passes", () => {
+    // A clean mark plus scattered 1–3 px noise blobs, like JPEG artefacts from an image model.
+    let seed = 7;
+    const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+    const noise = new Set(Array.from({ length: 60 }, () => `${Math.floor(rnd() * 256)},${Math.floor(rnd() * 256)}`));
+    const img = paint(256, 256, (x, y) => (disc(128, 128, 60)(x, y) || noise.has(`${Math.floor(x)},${Math.floor(y)}`) ? [0, 0, 0] : null));
+    const { rgba, removed } = despeckle(img, 256, 256);
+    expect(removed).toBeGreaterThan(20);
+    const m = measureConcept(rgba, 256, 256);
+    expect(m.specks).toBe(0);
+    expect(autoChecks(m, brief, checks).filter((r) => !r.pass)).toEqual([]);
+  });
+
+  it("keeps real design details like sparkles and dots", () => {
+    const sparkles = [[40, 40], [210, 50], [60, 200], [200, 210]] as const;
+    const img = paint(256, 256, (x, y) => (disc(128, 128, 55)(x, y) || sparkles.some(([cx, cy]) => disc(cx, cy, 5)(x, y)) ? [190, 150, 40] : null));
+    const { removed } = despeckle(img, 256, 256);
+    expect(removed).toBe(0);
+  });
+
+  it("only counts artwork as cut off when it reaches the edge, not when it is merely close", () => {
+    const close = paint(256, 256, (x, y) => (x > 3 && x < 252 && y > 100 && y < 150 ? [0, 0, 0] : null));
+    expect(failed(close, 256, 256)).not.toContain("margin");
+    const cut = paint(256, 256, (x, y) => (x < 200 && y > 100 && y < 150 ? [0, 0, 0] : null));
+    expect(failed(cut, 256, 256)).toContain("margin");
+  });
+
+  it("blocks only what matters; taste and tiny-size detail are notes", () => {
+    const defs = checklist(normalizeBrief({ brandName: "Amuse Asylum", logoType: "combination" }), true);
+    expect(defs.filter((d) => d.blocking).map((d) => d.id)).toEqual(["background", "margin", "original", "spelling", "extra_text", "type", "flat", "quality"]);
+    expect(defs.filter((d) => !d.blocking).map((d) => d.id)).toEqual(["clean", "colors", "mono", "small", "brief", "references"]);
   });
 });

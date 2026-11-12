@@ -3,8 +3,9 @@ import { BUDGET, isRetryable, runConcept, type ConceptDeps, type DrawRequest } f
 import type { CheckDef, CheckResult } from "@/lib/concept-prompt";
 
 const checks: CheckDef[] = [
-  { id: "background", label: "Clean background", by: "code" },
-  { id: "spelling", label: "Text spelled exactly", by: "ai" },
+  { id: "background", label: "Clean background", by: "code", blocking: true },
+  { id: "spelling", label: "Text spelled exactly", by: "ai", blocking: true },
+  { id: "small", label: "Readable when small", by: "code", blocking: false },
 ];
 const ok = (id: CheckResult["id"]): CheckResult => ({ id, pass: true, issue: "" });
 const bad = (id: CheckResult["id"], issue: string): CheckResult => ({ id, pass: false, issue });
@@ -22,7 +23,10 @@ function harness(plan: { auto: (src: string) => CheckResult[]; review: (src: str
       onFrame(src);
       return src;
     },
-    auto: async (src) => plan.auto(src),
+    auto: async (src) => {
+      const r = plan.auto(src);
+      return r.some((x) => x.id === "small") ? r : [...r, ok("small")];
+    },
     review: async (src) => plan.review(src),
     wait: async () => {},
     now: () => (t += 1000),
@@ -64,6 +68,15 @@ describe("concept hand-off loop", () => {
     expect(s.stage).toBe("passed");
     expect(s.image).toBe("img4");
     expect(s.redraws).toBe(1);
+  });
+
+  it("shows a concept whose only failures are notes, without spending a fix round", async () => {
+    const h = harness({ auto: () => [ok("background"), bad("small", "Thicken thin strokes")], review: () => [ok("spelling")] });
+    const s = await h.run();
+    expect(s.stage).toBe("passed");
+    expect(s.fixes).toBe(0);
+    expect(h.draws).toHaveLength(1);
+    expect(s.results.find((r) => r.id === "small")?.pass).toBe(false);
   });
 
   it("treats a missing check result as not passed", async () => {

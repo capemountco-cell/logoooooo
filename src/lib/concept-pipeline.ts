@@ -1,7 +1,7 @@
 // The hand-off loop every concept goes through before anyone sees it (no DOM; dependencies are
-// injected so it is tested without live AI): draw → check every box → fix the failed boxes →
-// check again … and, if fixing doesn't get there, start over with a fresh drawing. A concept is
-// only ever shown when every box passes.
+// injected so it is tested without live AI): draw → check every box → fix the failed blocking
+// boxes → check again … and, if fixing doesn't get there, start over with a fresh drawing. A
+// concept is shown when every blocking box passes; the other boxes are notes on it.
 import type { CheckDef, CheckResult, Provider } from "@/lib/concept-prompt";
 
 export type ConceptStage = "queued" | "drawing" | "checking" | "fixing" | "redrawing" | "waiting" | "passed" | "failed";
@@ -94,9 +94,11 @@ export async function runConcept(
         set({ stage: "checking", image: src });
         const [auto, ai] = await Promise.all([deps.auto(src), retry(() => deps.review(src, signal), "checking")]);
         const results = ordered(start.checks, [...auto, ...ai]);
-        const failed = results.filter((r) => !r.pass);
+        // Only blocking boxes decide; the rest are notes shown on the concept.
+        const blocking = start.checks.filter((c) => c.blocking);
+        const failed = results.filter((r) => !r.pass && blocking.some((c) => c.id === r.id));
         set({ results });
-        if (!failed.length && results.length === start.checks.length) {
+        if (!failed.length && blocking.every((c) => results.some((r) => r.id === c.id))) {
           set({ stage: "passed", note: "" });
           return state;
         }
