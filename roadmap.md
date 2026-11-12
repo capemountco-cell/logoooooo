@@ -22,6 +22,7 @@
 - [x] Lightweight UI (Create · Batch · Import, settings sheet) and batch briefs that each run independently with SVG/AI/PNG saves and Download all.
 - [x] Paste a brief straight from a web page: menus, footers, links, cookie/legal text and repeats are stripped before the AI reads it.
 - [x] All-black, concepts-first redesign with the LOGOO wordmark: Generate concepts in one step, rounds that stack, artwork-first tiles with collapsible checks.
+- [x] Automatic reference images: Brave Image Search (Openverse fallback), AI picks one per role, review panel after any round to remove, swap, re-role, upload or search again.
 - [ ] Live-test generation with real OpenAI and xAI keys; tune check thresholds and prompts on real outputs.
 - [ ] Brand identity package (palette, type pairing, logo versions, favicon, social) behind its setting.
 - [ ] Mockups behind their setting.

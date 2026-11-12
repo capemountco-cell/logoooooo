@@ -65,11 +65,14 @@ export async function openaiJson({ instructions, content, effort = "minimal", si
   }
 }
 
-export async function fileToDataUrl(file: File) {
-  const bytes = new Uint8Array(await file.arrayBuffer());
+export function bytesToDataUrl(bytes: Uint8Array, type: string) {
   let bin = "";
   for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
-  return `data:${file.type || "image/png"};base64,${btoa(bin)}`;
+  return `data:${type || "image/png"};base64,${btoa(bin)}`;
+}
+
+export async function fileToDataUrl(file: File) {
+  return bytesToDataUrl(new Uint8Array(await file.arrayBuffer()), file.type);
 }
 
 /** Turns a failure into a short response for the browser (the status is kept for retry decisions). */

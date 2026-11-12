@@ -1,8 +1,9 @@
 import { useState } from "react";
-import { Pencil, Plus, RotateCcw, Square } from "lucide-react";
+import { Images, Pencil, Plus, RotateCcw, Square } from "lucide-react";
 import { BriefComposer } from "@/components/app/brief-composer";
 import { BriefCard } from "@/components/app/brief-card";
 import { ConceptGrid } from "@/components/app/concept-grid";
+import { ReferenceReview } from "@/components/app/reference-review";
 import { useBriefJob } from "@/hooks/use-brief-job";
 import type { PreparedRef } from "@/lib/concept-client";
 import type { ConceptState } from "@/lib/concept-pipeline";
@@ -16,6 +17,7 @@ export function CreateLogo({ onOpen }: { onOpen: (c: ConceptState, brief: LogoBr
   const job = useBriefJob();
   const [notes, setNotes] = useState("");
   const [refs, setRefs] = useState<PreparedRef[]>([]);
+  const [reviewing, setReviewing] = useState(false);
   const studio = job.rounds.length > 0 && (job.phase === "generating" || job.phase === "done");
   const all = job.rounds.flatMap((r) => r.concepts);
   const passed = all.filter((c) => c.stage === "passed").length;
@@ -43,6 +45,10 @@ export function CreateLogo({ onOpen }: { onOpen: (c: ConceptState, brief: LogoBr
               </p>
             </div>
             <div className="flex flex-wrap gap-2">
+              <button type="button" onClick={() => setReviewing(true)} className="inline-flex h-10 items-center gap-1.5 rounded-full border border-border px-3.5 text-sm font-medium">
+                <Images className="h-4 w-4" aria-hidden="true" />
+                References{job.refs.length ? ` (${job.refs.length})` : ""}
+              </button>
               <button type="button" onClick={() => { job.cancel(); job.setPhase("brief"); }} className="inline-flex h-10 items-center gap-1.5 rounded-full border border-border px-3.5 text-sm font-medium">
                 <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
                 Edit brief
@@ -66,7 +72,9 @@ export function CreateLogo({ onOpen }: { onOpen: (c: ConceptState, brief: LogoBr
           </header>
 
           <p className="-mt-3 text-[13px] text-muted-foreground" role="status">
-            {running
+            {running && job.refStatus === "searching"
+              ? "Finding reference logos for style, concept and lettering…"
+              : running
               ? `Drawing and checking round ${job.rounds.length} · ${settledNow} of 4 done. Concepts appear only once they pass every check.`
               : passed
                 ? `${passed} concept${passed === 1 ? "" : "s"} passed every check. Pick one to trace and export it.`
@@ -78,16 +86,43 @@ export function CreateLogo({ onOpen }: { onOpen: (c: ConceptState, brief: LogoBr
             const ok = round.concepts.filter((c) => c.stage === "passed").length;
             return (
               <section key={round.id} aria-label={`Round ${n}`} className="flex flex-col gap-4">
-                {job.rounds.length > 1 && (
-                  <h2 className="font-mono text-[11px] tracking-[0.06em] text-muted-foreground uppercase">
-                    Round {n} · {ok} of 4 passed
-                  </h2>
-                )}
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  {job.rounds.length > 1 ? (
+                    <h2 className="font-mono text-[11px] tracking-[0.06em] text-muted-foreground uppercase">
+                      Round {n} · {ok} of 4 passed
+                    </h2>
+                  ) : <span />}
+                  {round.refs.length > 0 && (
+                    <button type="button" onClick={() => setReviewing(true)} className="group inline-flex items-center gap-2 rounded-full border border-border py-1 pr-3 pl-1 text-xs text-muted-foreground hover:text-foreground" aria-label={`Review the ${round.refs.length} references used in round ${n}`}>
+                      <span className="flex -space-x-2">
+                        {round.refs.slice(0, 4).map((r) => (
+                          <img key={r.id} src={r.image} alt="" className="h-7 w-7 rounded-full border-2 border-background bg-artboard object-cover" />
+                        ))}
+                      </span>
+                      {round.refs.length} reference{round.refs.length === 1 ? "" : "s"} used
+                    </button>
+                  )}
+                </div>
                 <ConceptGrid concepts={round.concepts} checks={round.checks} offset={(n - 1) * 4} onPick={(c) => onOpen(c, b)} />
               </section>
             );
           })}
         </div>
+        <ReferenceReview
+          open={reviewing}
+          onOpenChange={setReviewing}
+          refs={job.refs}
+          candidates={job.candidates}
+          provider={job.provider}
+          status={job.refStatus}
+          onRemove={job.removeRef}
+          onRole={job.changeRole}
+          onCandidate={job.useCandidate}
+          onUpload={job.addUpload}
+          onFindNew={job.findNewRefs}
+          onGenerate={() => void job.generate()}
+          busy={running}
+        />
       </main>
     );
   }

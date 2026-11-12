@@ -10,6 +10,7 @@ import { adviseColor } from "@/lib/color-trace";
 import { coverageFromRgba } from "@/lib/vectorize";
 import { logoFile } from "@/lib/logo-files";
 import { streamImage } from "@/lib/stream-image";
+import type { AutoReference, Candidate, SearchProvider } from "@/lib/reference-search";
 
 /** Pixels of an image (data URL or file), converted to sRGB by the canvas, long side ≤ maxSide. */
 export async function imagePixels(src: string | Blob, maxSide = 1024) {
@@ -117,4 +118,56 @@ export function conceptDeps(input: JobInput, checks: CheckDef[] = checklist(inpu
       return ((await res.json()) as { results: CheckResult[] }).results;
     },
   };
+}
+
+// ---------- references in use (uploaded or found automatically) ----------
+
+/** A reference a job uses: its role, role-limited description, picture and shape fingerprint. */
+export type RefItem = {
+  id: string;
+  role: ReferenceRole;
+  description: string;
+  /** Data URL or object URL of the picture. */
+  image: string;
+  signature: Float32Array;
+  /** Found by the AI (vs uploaded by the user). */
+  auto: boolean;
+  candidate?: Candidate | undefined;
+};
+
+async function signatureOf(image: string) {
+  const { width, height, rgba } = await imagePixels(image, 512);
+  return coverageSignature(coverageFromRgba(rgba, width, height), width, height);
+}
+
+export type FoundRefs = { provider: SearchProvider; refs: RefItem[]; candidates: Candidate[] };
+
+/** Asks the server to search, pick and describe references for the brief. */
+export async function findAutoRefs(brief: LogoBrief, opts: { exclude?: string[]; roles?: ReferenceRole[] }, signal: AbortSignal): Promise<FoundRefs> {
+  const res = await fetch("/api/references", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ brief, ...opts }),
+    signal,
+  });
+  if (!res.ok) throw await failure(res, "Couldn't find references.");
+  const json = (await res.json()) as { provider: SearchProvider; references: AutoReference[]; candidates: Candidate[] };
+  const refs = await Promise.all(
+    json.references.map(async (r): Promise<RefItem> => ({
+      id: crypto.randomUUID(), role: r.role, description: r.description, image: r.image, signature: await signatureOf(r.image), auto: true, candidate: r.candidate,
+    })),
+  );
+  return { provider: json.provider, refs, candidates: json.candidates };
+}
+
+/** Describes one reference for a role: an uploaded file, or a search candidate's thumbnail. */
+export async function describeRef(role: ReferenceRole, src: { file?: File; candidate?: Candidate }, signal?: AbortSignal): Promise<RefItem> {
+  const form = new FormData();
+  form.append("role", role);
+  if (src.file) form.append("image", src.file);
+  else if (src.candidate) form.append("url", src.candidate.thumb);
+  const res = await fetch("/api/reference-note", { method: "POST", body: form, signal: signal ?? null });
+  if (!res.ok) throw await failure(res, "Couldn't read that reference.");
+  const { description, image } = (await res.json()) as { description: string; image: string };
+  return { id: crypto.randomUUID(), role, description, image, signature: await signatureOf(image), auto: Boolean(src.candidate), candidate: src.candidate };
 }

@@ -44,7 +44,10 @@ export function BriefComposer({
         </p>
       )}
       <div className="flex flex-wrap items-end justify-between gap-3">
-        <ReferencePicker refs={refs} onChange={onRefs} disabled={busy} />
+        <div className="flex flex-col gap-1.5">
+          <ReferencePicker refs={refs} onChange={onRefs} disabled={busy} />
+          {refs.length === 0 && <p className="px-1 text-xs text-muted-foreground">Optional — LOGOO finds references for you, and you can review them after any round.</p>}
+        </div>
         {busy ? (
           <button type="button" onClick={onCancel} className="inline-flex h-[46px] items-center gap-2 rounded-full border border-border px-4 text-[15px] font-medium">
             <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />

@@ -3,16 +3,16 @@ import { Settings } from "lucide-react";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Switch } from "@/components/ui/switch";
 
-export type AppSettings = { identity: boolean; mockups: boolean };
+export type AppSettings = { autoRefs: boolean; identity: boolean; mockups: boolean };
 const KEY = "vectorthis.settings.v1";
-export const DEFAULT_SETTINGS: AppSettings = { identity: false, mockups: false };
+export const DEFAULT_SETTINGS: AppSettings = { autoRefs: true, identity: false, mockups: false };
 
 /** Settings live only in this browser; every access is guarded (storage may be unavailable). */
 export function loadSettings(): AppSettings {
   try {
     const raw = globalThis.localStorage?.getItem(KEY);
     const v = raw ? (JSON.parse(raw) as Partial<AppSettings>) : {};
-    return { identity: v.identity === true, mockups: v.mockups === true };
+    return { autoRefs: v.autoRefs !== false, identity: v.identity === true, mockups: v.mockups === true };
   } catch {
     return DEFAULT_SETTINGS;
   }
@@ -25,7 +25,7 @@ function saveSettings(s: AppSettings) {
   }
 }
 
-/** Optional extras, off by default: they cost extra generations, so the user opts in. */
+/** Settings: automatic references (on by default), and optional extras the user opts in to. */
 export function SettingsSheet() {
   const [settings, setSettings] = useState<AppSettings>(DEFAULT_SETTINGS);
   useEffect(() => setSettings(loadSettings()), []);
@@ -34,9 +34,10 @@ export function SettingsSheet() {
     setSettings(next);
     saveSettings(next);
   };
-  const rows: { key: keyof AppSettings; title: string; note: string }[] = [
-    { key: "identity", title: "Brand identity package", note: "Palette, type pairing, logo versions, favicon and social avatars." },
-    { key: "mockups", title: "Mockups", note: "Your logo on cards, signage and merchandise. Uses extra image generations." },
+  const rows: { key: keyof AppSettings; title: string; note: string; soon?: boolean }[] = [
+    { key: "autoRefs", title: "Find references automatically", note: "Before each first round, LOGOO searches for reference logos and picks the best for style, concept and lettering. Review them after any round." },
+    { key: "identity", title: "Brand identity package", note: "Palette, type pairing, logo versions, favicon and social avatars.", soon: true },
+    { key: "mockups", title: "Mockups", note: "Your logo on cards, signage and merchandise. Uses extra image generations.", soon: true },
   ];
   return (
     <Sheet>
@@ -48,7 +49,7 @@ export function SettingsSheet() {
       <SheetContent className="flex flex-col gap-5 bg-card">
         <SheetHeader>
           <SheetTitle>Settings</SheetTitle>
-          <SheetDescription>Optional extras, generated only when switched on.</SheetDescription>
+          <SheetDescription>Saved on this device.</SheetDescription>
         </SheetHeader>
         <ul className="flex flex-col gap-3">
           {rows.map((r) => (
@@ -56,11 +57,11 @@ export function SettingsSheet() {
               <span className="flex flex-col gap-0.5">
                 <span className="flex items-center gap-2 text-[15px] font-semibold">
                   {r.title}
-                  <span className="rounded-md bg-muted px-1.5 py-0.5 font-mono text-[10px] font-medium tracking-[0.04em] text-muted-foreground uppercase">Coming soon</span>
+                  {r.soon && <span className="rounded-md bg-muted px-1.5 py-0.5 font-mono text-[10px] font-medium tracking-[0.04em] text-muted-foreground uppercase">Coming soon</span>}
                 </span>
                 <span className="text-[13px] text-muted-foreground">{r.note}</span>
               </span>
-              <Switch checked={settings[r.key]} onCheckedChange={(v) => set({ [r.key]: v })} aria-label={r.title} disabled />
+              <Switch checked={settings[r.key]} onCheckedChange={(v) => set({ [r.key]: v })} aria-label={r.title} disabled={r.soon} />
             </li>
           ))}
         </ul>
