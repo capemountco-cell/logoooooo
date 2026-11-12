@@ -1,6 +1,6 @@
 import { useId, useMemo, useState } from "react";
 import { Copy, Minus, Plus } from "lucide-react";
-import { outlineStats, type ViewBox } from "@/lib/outline";
+import { outlineStats, outlineTiers, type OutlineTier, type ViewBox } from "@/lib/outline";
 import { BOARD, pathsBounds } from "@/lib/board";
 import type { LogoResult } from "@/lib/result-model";
 import { isOverlay, radialTransform } from "@/lib/color-trace";
@@ -66,6 +66,16 @@ function Vector({ result, ink, className, frame }: { result: LogoResult; ink: st
   );
 }
 
+/** Outline drawing in screen pixels per contour size (see outlineTiers): dashed stroke over a paper halo. */
+export const OUTLINE: Record<OutlineTier, { stroke: number; dash: string | undefined; halo: number }> = {
+  large: { stroke: 2, dash: "8 5", halo: 5 },
+  medium: { stroke: 1.6, dash: "4 3", halo: 3 },
+  small: { stroke: 1.1, dash: undefined, halo: 0 },
+};
+/** The Outlines view's display width, used to judge how big each contour looks. */
+const OUTLINE_WIDTH = 560;
+const OUTLINE_HEIGHT = 600;
+
 /**
  * Blueprint-style outlines: the logo as a pale fill with a dashed outline, plus dashed guides
  * along its top and bottom. Stroke widths are in screen pixels so every size looks the same.
@@ -78,12 +88,22 @@ function Outlines({ result, className, points }: { result: LogoResult; className
   const unit = Math.max(v.width, v.height) / 360; // ~1 screen px at the default size
   const ink = "var(--outline-ink)";
   const far = Math.max(v.width, v.height) * 20;
-  const dash = { stroke: ink, strokeWidth: 1.5, strokeDasharray: "5 4", vectorEffect: "non-scaling-stroke" as const };
+  // Legibility (user's reference): long, firm dashes over a paper-coloured halo, so contours that
+  // run close together (an O's counter against its bowl) stay apart. Smaller contours get shorter
+  // dashes, and fine lettering a thin solid line, so nothing is chopped into fragments.
+  const ppu = Math.min(OUTLINE_WIDTH / v.width, OUTLINE_HEIGHT / v.height);
+  const tiers = useMemo(() => {
+    const t = outlineTiers(result.paths, ppu);
+    return (["large", "medium", "small"] as const).filter((k) => t[k].length).map((k) => ({ k, d: pathData(t[k]) }));
+  }, [result.paths, ppu]);
+  const line = (k: OutlineTier) => ({ stroke: ink, strokeWidth: OUTLINE[k].stroke, strokeDasharray: OUTLINE[k].dash, strokeLinecap: "butt" as const, vectorEffect: "non-scaling-stroke" as const });
   return (
     <svg viewBox={`${v.x} ${v.y} ${v.width} ${v.height}`} className={cn("overflow-visible", className)} role="img" aria-label={`Outlines with ${stats.anchors.length} anchor points`}>
-      <line x1={v.x - far} x2={v.x + v.width + far} y1={b.y0} y2={b.y0} {...dash} />
-      <line x1={v.x - far} x2={v.x + v.width + far} y1={b.y1} y2={b.y1} {...dash} />
-      <path d={d} fill="var(--outline-fill)" fillRule="evenodd" strokeLinejoin="round" {...dash} />
+      <line x1={v.x - far} x2={v.x + v.width + far} y1={b.y0} y2={b.y0} {...line("large")} />
+      <line x1={v.x - far} x2={v.x + v.width + far} y1={b.y1} y2={b.y1} {...line("large")} />
+      <path d={d} fill="var(--outline-fill)" fillRule="evenodd" />
+      {tiers.map(({ k, d: td }) => OUTLINE[k].halo > 0 && <path key={`halo-${k}`} d={td} fill="none" stroke="var(--outline-paper)" strokeWidth={OUTLINE[k].halo} strokeLinejoin="round" vectorEffect="non-scaling-stroke" />)}
+      {tiers.map(({ k, d: td }) => <path key={`line-${k}`} d={td} fill="none" strokeLinejoin="round" {...line(k)} />)}
       {points && (
         <>
           {stats.handles.map(([a, h], i) => (

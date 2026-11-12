@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { outlineStats, parsePathData, parseSvg } from "@/lib/outline";
+import { outlineStats, outlineTiers, parsePathData, parseSvg } from "@/lib/outline";
 import { pathData, toSvg, type TracedPath } from "@/lib/vectorize";
 import { toLayeredSvg, type ColorLayer } from "@/lib/color-trace";
 
@@ -89,5 +89,26 @@ describe("outline parsing", () => {
   it("never trusts foreign fills: anything but a hex colour or own gradient reads as black", () => {
     const svg = '<svg viewBox="0 0 10 10"><path fill="url(javascript:alert(1))" d="M0 0L5 0L5 5Z"/><path fill="red" d="M1 1L4 1L4 4Z"/></svg>';
     expect(parseSvg(svg).layers.map((l) => l.fill)).toEqual([{ type: "solid", color: "#000000" }, { type: "solid", color: "#000000" }]);
+  });
+});
+
+describe("outline legibility tiers", () => {
+  const square = (x: number, y: number, s: number) => ({
+    start: { x, y },
+    segments: [
+      { type: "L" as const, to: { x: x + s, y } },
+      { type: "L" as const, to: { x: x + s, y: y + s } },
+      { type: "L" as const, to: { x, y: y + s } },
+      { type: "L" as const, to: { x, y } },
+    ],
+  });
+  it("draws big shapes dashed with a halo and fine lettering as a thin solid line", () => {
+    // At 2 px per unit: 200 → 400px (large), 40 → 80px (medium), 10 → 20px (small).
+    const t = outlineTiers([square(0, 0, 200), square(0, 0, 40), square(0, 0, 10)], 2);
+    expect(t.large).toHaveLength(1);
+    expect(t.medium).toHaveLength(1);
+    expect(t.small).toHaveLength(1);
+    // Zooming the view out pushes the same shapes down a tier.
+    expect(outlineTiers([square(0, 0, 200)], 0.5).medium).toHaveLength(1);
   });
 });
