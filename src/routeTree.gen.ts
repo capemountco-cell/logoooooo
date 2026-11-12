@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ApiBriefRouteImport } from './routes/api/brief'
+import { Route as ApiBriefExtractRouteImport } from './routes/api/brief-extract'
 import { Route as ApiConceptRouteImport } from './routes/api/concept'
 import { Route as ApiEditImageRouteImport } from './routes/api/edit-image'
 import { Route as ApiReferenceNoteRouteImport } from './routes/api/reference-note'
@@ -25,6 +26,11 @@ const IndexRoute = IndexRouteImport.update({
 const ApiBriefRoute = ApiBriefRouteImport.update({
   id: '/api/brief',
   path: '/api/brief',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiBriefExtractRoute = ApiBriefExtractRouteImport.update({
+  id: '/api/brief-extract',
+  path: '/api/brief-extract',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiConceptRoute = ApiConceptRouteImport.update({
@@ -56,6 +62,7 @@ const ApiReviewRoute = ApiReviewRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/api/brief': typeof ApiBriefRoute
+  '/api/brief-extract': typeof ApiBriefExtractRoute
   '/api/concept': typeof ApiConceptRoute
   '/api/edit-image': typeof ApiEditImageRoute
   '/api/reference-note': typeof ApiReferenceNoteRoute
@@ -65,6 +72,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/api/brief': typeof ApiBriefRoute
+  '/api/brief-extract': typeof ApiBriefExtractRoute
   '/api/concept': typeof ApiConceptRoute
   '/api/edit-image': typeof ApiEditImageRoute
   '/api/reference-note': typeof ApiReferenceNoteRoute
@@ -75,6 +83,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/api/brief': typeof ApiBriefRoute
+  '/api/brief-extract': typeof ApiBriefExtractRoute
   '/api/concept': typeof ApiConceptRoute
   '/api/edit-image': typeof ApiEditImageRoute
   '/api/reference-note': typeof ApiReferenceNoteRoute
@@ -86,6 +95,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/api/brief'
+    | '/api/brief-extract'
     | '/api/concept'
     | '/api/edit-image'
     | '/api/reference-note'
@@ -95,6 +105,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/api/brief'
+    | '/api/brief-extract'
     | '/api/concept'
     | '/api/edit-image'
     | '/api/reference-note'
@@ -104,6 +115,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/api/brief'
+    | '/api/brief-extract'
     | '/api/concept'
     | '/api/edit-image'
     | '/api/reference-note'
@@ -114,6 +126,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   ApiBriefRoute: typeof ApiBriefRoute
+  ApiBriefExtractRoute: typeof ApiBriefExtractRoute
   ApiConceptRoute: typeof ApiConceptRoute
   ApiEditImageRoute: typeof ApiEditImageRoute
   ApiReferenceNoteRoute: typeof ApiReferenceNoteRoute
@@ -135,6 +148,13 @@ declare module '@tanstack/react-router' {
       path: '/api/brief'
       fullPath: '/api/brief'
       preLoaderRoute: typeof ApiBriefRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/brief-extract': {
+      id: '/api/brief-extract'
+      path: '/api/brief-extract'
+      fullPath: '/api/brief-extract'
+      preLoaderRoute: typeof ApiBriefExtractRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/concept': {
@@ -178,6 +198,7 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   ApiBriefRoute: ApiBriefRoute,
+  ApiBriefExtractRoute: ApiBriefExtractRoute,
   ApiConceptRoute: ApiConceptRoute,
   ApiEditImageRoute: ApiEditImageRoute,
   ApiReferenceNoteRoute: ApiReferenceNoteRoute,

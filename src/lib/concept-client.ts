@@ -11,6 +11,7 @@ import { coverageFromRgba } from "@/lib/vectorize";
 import { logoFile } from "@/lib/logo-files";
 import { streamImage } from "@/lib/stream-image";
 import type { AutoReference, Candidate, SearchProvider } from "@/lib/reference-search";
+import { TILE, tileRects } from "@/lib/brief-extract";
 
 /** Pixels of an image (data URL or file), converted to sRGB by the canvas, long side ≤ maxSide. */
 export async function imagePixels(src: string | Blob, maxSide = 1024) {
@@ -170,4 +171,52 @@ export async function describeRef(role: ReferenceRole, src: { file?: File; candi
   if (!res.ok) throw await failure(res, "Couldn't read that reference.");
   const { description, image } = (await res.json()) as { description: string; image: string };
   return { id: crypto.randomUUID(), role, description, image, signature: await signatureOf(image), auto: Boolean(src.candidate), candidate: src.candidate };
+}
+
+// ---------- briefs from uploads ----------
+
+/** Cuts a screenshot into readable JPEG sections (top to bottom), read through the canvas (sRGB). */
+export async function briefSections(file: Blob): Promise<File[]> {
+  const bitmap = await createImageBitmap(file);
+  try {
+    // Narrow phone captures are scaled up to the section width so their small text stays legible.
+    const scale = TILE.width / bitmap.width;
+    const width = TILE.width, height = Math.max(1, Math.round(bitmap.height * scale));
+    const canvas = document.createElement("canvas");
+    const ctx = canvas.getContext("2d");
+    if (!ctx) throw new Error("Could not read the screenshot.");
+    const out: File[] = [];
+    for (const [i, r] of tileRects(height).entries()) {
+      canvas.width = width;
+      canvas.height = Math.min(r.height, height - r.y);
+      ctx.fillStyle = "#fff";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(bitmap, 0, r.y / scale, bitmap.width, canvas.height / scale, 0, 0, canvas.width, canvas.height);
+      const blob = await new Promise<Blob | null>((res) => canvas.toBlob(res, "image/jpeg", 0.9));
+      if (!blob) throw new Error("Could not prepare the screenshot.");
+      out.push(new File([blob], `brief-${i + 1}.jpg`, { type: "image/jpeg" }));
+    }
+    return out;
+  } finally {
+    bitmap.close();
+  }
+}
+
+/**
+ * Turns an uploaded brief into text for the composer: text files are read as they are, PDFs go
+ * to the model whole, and screenshots go as ordered sections. Returns how many sections were read.
+ */
+export async function extractBrief(file: File, signal?: AbortSignal): Promise<{ text: string; sections: number }> {
+  if (file.type.startsWith("text/") || /\.(txt|md)$/i.test(file.name)) {
+    return { text: (await file.text()).slice(0, 60_000), sections: 1 };
+  }
+  const isPdf = file.type === "application/pdf" || /\.pdf$/i.test(file.name);
+  if (!isPdf && !file.type.startsWith("image/")) throw new Error("Use a screenshot (PNG, JPG, WebP), a PDF or a text file.");
+  const parts = isPdf ? [new File([file], file.name || "brief.pdf", { type: "application/pdf" })] : await briefSections(file);
+  const form = new FormData();
+  for (const p of parts) form.append("file", p);
+  const res = await fetch("/api/brief-extract", { method: "POST", body: form, signal: signal ?? null });
+  if (!res.ok) throw await failure(res, "Couldn't read that brief.");
+  const { text } = (await res.json()) as { text: string };
+  return { text, sections: parts.length };
 }
