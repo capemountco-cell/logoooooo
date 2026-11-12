@@ -15,3 +15,11 @@
 - [x] Colour and gradients: region-based colour trace with linear gradients, black & white by default, 0–100 colour recommendation with palette, one-tap Colour switch; green-B fixture matches its source at 98.4% (desktop + mobile verified).
 - [x] Fix colour trace on soft-edged multi-colour logos: background is flooded first so it can never swallow stripes; stricter growth; stripes logo regression fixture (99.2% colour match).
 - [x] Default exports to a 1300 × 1200 design board with the logo centred in a safe box (Logo only optional), brand-background PNGs for colour logos, and keep fine lettering in colour traces (Benchmark fixture).
+- [x] Adobe Illustrator (.ai) export for every result and batch card, rendered against the SVG with an independent PDF renderer (≤0.25/255 mean difference).
+- [x] Remove Gemini and the Lovable AI gateway; OpenAI and Grok only.
+- [x] Logo generation from a brief: messy notes cleaned into a structured brief (gpt-5-nano), 9 logo types with Combination mark default, role-based references (typography/style/colour/layout/concept/mood) passed as text only.
+- [x] Four concepts per brief (2 OpenAI, 2 Grok) with a self-check hand-off: code checks + AI review, failed boxes fixed and rechecked, fresh redraw if needed; only fully passing concepts are shown.
+- [x] Lightweight UI (Create · Batch · Import, settings sheet) and batch briefs that each run independently with SVG/AI/PNG saves and Download all.
+- [ ] Live-test generation with real OpenAI and xAI keys; tune check thresholds and prompts on real outputs.
+- [ ] Brand identity package (palette, type pairing, logo versions, favicon, social) behind its setting.
+- [ ] Mockups behind their setting.

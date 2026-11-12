@@ -10,7 +10,7 @@ export type TaskOptions = {
   mode: TaskMode;
   text: string;
   shape: File | null;
-  provider: "openai" | "gemini" | "grok";
+  provider: "openai" | "grok";
 };
 export type LogoTaskDependencies<T> = {
   flatten: (file: File) => Promise<File>;

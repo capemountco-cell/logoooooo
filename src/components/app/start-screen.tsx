@@ -167,8 +167,8 @@ export function StartScreen(p: Props) {
           <p className="hidden min-w-[200px] flex-1 text-[13px] text-muted-foreground sm:block">{info.hint}</p>
           {info.ai && (
             <label className="flex items-center gap-2 text-[13px] font-medium text-subtle">
-              <Switch checked={p.more} onCheckedChange={p.onMore} aria-label="Compare 3 AI versions" />
-              Compare 3 AI versions
+              <Switch checked={p.more} onCheckedChange={p.onMore} aria-label="Compare 2 AI versions" />
+              Compare 2 AI versions
             </label>
           )}
           <div className="fixed inset-x-0 bottom-0 z-20 bg-gradient-to-t from-background via-background/95 to-transparent px-4 pt-6 pb-5 sm:static sm:bg-none sm:p-0">

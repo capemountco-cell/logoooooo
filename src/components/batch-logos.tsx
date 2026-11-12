@@ -23,7 +23,7 @@ export function BatchLogos({ mode, onMode }: { mode: TaskMode; onMode: (mode: Ta
   const ai = mode !== "trace";
 
   function createJobs(file: File, start: boolean, m: TaskMode = mode): BatchJob[] {
-    const providers: TaskOptions["provider"][] = more && m !== "trace" ? ["openai", "gemini", "grok"] : ["openai"];
+    const providers: TaskOptions["provider"][] = more && m !== "trace" ? ["openai", "grok"] : ["openai"];
     return (start ? providers : (["openai"] as const)).map((provider) => ({ id: crypto.randomUUID(), file, options: start ? { mode: m, text, shape, provider } : null }));
   }
   function uploadLogos(files: File[]) {
@@ -96,8 +96,8 @@ export function BatchLogos({ mode, onMode }: { mode: TaskMode; onMode: (mode: Ta
               </label>
             )}
             <label className="flex items-center gap-2 text-[13px] font-medium text-subtle">
-              <Switch checked={more} onCheckedChange={setMore} aria-label="Get 3 batch versions" />
-              Compare 3 AI versions
+              <Switch checked={more} onCheckedChange={setMore} aria-label="Get 2 batch versions" />
+              Compare 2 AI versions
             </label>
           </div>
         )}

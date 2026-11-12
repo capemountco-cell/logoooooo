@@ -1,0 +1,121 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { Route as BriefRoute } from "@/routes/api/brief";
+import { Route as ConceptRoute } from "@/routes/api/concept";
+import { Route as ReviewRoute } from "@/routes/api/review";
+import { normalizeBrief } from "@/lib/brief";
+
+type Handler = (ctx: { request: Request }) => Promise<Response>;
+const post = (route: unknown) => (route as { options: { server: { handlers: { POST: Handler } } } }).options.server.handlers.POST;
+
+const brief = normalizeBrief({ brandName: "Ember", logoType: "wordmark", summary: "A cosy coffee shop logo.", personality: ["cosy"] });
+const png = () => new File([new Uint8Array([137, 80, 78, 71])], "x.png", { type: "image/png" });
+const request = (path: string, form: FormData) => new Request(`http://localhost${path}`, { method: "POST", body: form });
+
+let calls: { url: string; body: unknown }[] = [];
+function mockFetch(reply: (url: string, body: unknown) => Response) {
+  vi.stubGlobal("fetch", vi.fn(async (url: string, init: RequestInit) => {
+    const body = typeof init.body === "string" ? JSON.parse(init.body) : init.body;
+    calls.push({ url, body });
+    return reply(url, body);
+  }));
+}
+const responses = (obj: unknown) => Response.json({ output: [{ type: "message", content: [{ type: "output_text", text: typeof obj === "string" ? obj : JSON.stringify(obj) }] }] });
+
+beforeEach(() => {
+  calls = [];
+  process.env["OPENAI_API_KEY"] = "test-openai";
+  process.env["XAI_API_KEY"] = "test-xai";
+});
+afterEach(() => vi.unstubAllGlobals());
+
+describe("/api/brief", () => {
+  it("reads each reference for its role only, then writes a structured brief with the cheapest model", async () => {
+    mockFetch((_u, body) => {
+      const b = body as { text?: unknown };
+      return b.text ? responses({ ...brief, logoType: "combination" }) : responses("rounded geometric sans, lowercase");
+    });
+    const form = new FormData();
+    form.append("notes", "ember coffee, cosy");
+    form.append("role0", "typography");
+    form.append("ref0", png());
+    form.append("role1", "colour");
+    form.append("ref1", png());
+    form.append("palette1", "#c2410c, #1f2937");
+    const res = await post(BriefRoute)({ request: request("/api/brief", form) });
+    expect(res.status).toBe(200);
+    const json = (await res.json()) as { brief: { logoType: string }; references: { role: string; description: string }[] };
+    expect(json.brief.logoType).toBe("combination");
+    // Colour comes from measured pixels, so only the typography reference goes to the vision model.
+    expect(calls).toHaveLength(2);
+    const [vision, cleanup] = calls.map((c) => c.body as Record<string, unknown>);
+    expect(vision!["model"]).toBe("gpt-5-nano");
+    expect(String(vision!["instructions"])).toContain("ONLY its lettering");
+    expect(cleanup!["model"]).toBe("gpt-5-nano");
+    expect((cleanup!["text"] as { format: { type: string; strict: boolean } }).format).toMatchObject({ type: "json_schema", strict: true });
+    expect(JSON.stringify(cleanup!["input"])).toContain("Use for TYPOGRAPHY only: rounded geometric sans");
+    expect(json.references[1]).toEqual({ role: "colour", description: "Use this palette: #c2410c, #1f2937." });
+  });
+
+  it("rejects an empty brief and passes rate limits through for retry", async () => {
+    const empty = new FormData();
+    empty.append("notes", "");
+    expect((await post(BriefRoute)({ request: request("/api/brief", empty) })).status).toBe(400);
+    mockFetch(() => new Response("slow down", { status: 429 }));
+    const form = new FormData();
+    form.append("notes", "ember coffee");
+    expect((await post(BriefRoute)({ request: request("/api/brief", form) })).status).toBe(429);
+  });
+});
+
+describe("/api/concept", () => {
+  const form = (extra: Record<string, string | File>) => {
+    const f = new FormData();
+    f.append("brief", JSON.stringify(brief));
+    f.append("references", "[]");
+    for (const [k, v] of Object.entries(extra)) f.append(k, v);
+    return f;
+  };
+
+  it("builds the prompt on the server and generates with gpt-image-2", async () => {
+    mockFetch(() => new Response("event: x\n\n", { headers: { "Content-Type": "text/event-stream" } }));
+    const res = await post(ConceptRoute)({ request: request("/api/concept", form({ provider: "openai", index: "2" })) });
+    expect(res.status).toBe(200);
+    expect(calls[0]!.url).toBe("https://api.openai.com/v1/images/generations");
+    const body = calls[0]!.body as { model: string; prompt: string; stream: boolean };
+    expect(body.model).toBe("gpt-image-2");
+    expect(body.prompt).toContain('the brand name "Ember" exactly once');
+    expect(body.prompt).toContain("concept 3 of 4");
+    expect(body.stream).toBe(true);
+  });
+
+  it("uses Grok text-to-image, and Grok edits for fixes", async () => {
+    mockFetch(() => Response.json({ data: [{ b64_json: "QUJD" }] }));
+    const gen = await post(ConceptRoute)({ request: request("/api/concept", form({ provider: "grok", index: "1" })) });
+    expect(calls[0]!.url).toBe("https://api.x.ai/v1/images/generations");
+    expect((calls[0]!.body as { model: string }).model).toBe("grok-imagine-image");
+    expect(await gen.text()).toContain("image_generation.completed");
+    const fix = await post(ConceptRoute)({ request: request("/api/concept", form({ provider: "grok", image: png(), issues: JSON.stringify(["Make the 'm' complete"]) })) });
+    expect(fix.status).toBe(200);
+    expect(calls[1]!.url).toBe("https://api.x.ai/v1/images/edits");
+    expect((calls[1]!.body as { prompt: string }).prompt).toContain("1. Make the 'm' complete");
+  });
+
+  it("rejects Gemini and other unknown providers", async () => {
+    expect((await post(ConceptRoute)({ request: request("/api/concept", form({ provider: "gemini" })) })).status).toBe(400);
+  });
+});
+
+describe("/api/review", () => {
+  it("grades with structured output and overrides a spelling pass the reviewer didn't read", async () => {
+    mockFetch(() => responses({ textSeen: "Embr", checks: ["spelling", "extra_text", "type", "brief", "flat", "quality"].map((id) => ({ id, pass: true, issue: "" })) }));
+    const f = new FormData();
+    f.append("image", png());
+    f.append("brief", JSON.stringify(brief));
+    f.append("references", "[]");
+    const res = await post(ReviewRoute)({ request: request("/api/review", f) });
+    const json = (await res.json()) as { results: { id: string; pass: boolean }[] };
+    expect((calls[0]!.body as { model: string }).model).toBe("gpt-5-nano");
+    expect(json.results.find((r) => r.id === "spelling")?.pass).toBe(false);
+    expect(json.results.filter((r) => r.pass)).toHaveLength(5);
+  });
+});
