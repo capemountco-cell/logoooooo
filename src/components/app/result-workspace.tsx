@@ -354,7 +354,7 @@ export function ResultWorkspace({ result, versions, onPickVersion, onNew, onReru
               onChange={setCanvas}
               options={[{ value: "board", label: "Board" }, { value: "logo", label: "Logo" }]}
             />
-            <Segmented label="Format" value={format} onChange={setFormat} options={[{ value: "ai", label: "AI" }, { value: "svg", label: "SVG" }, { value: "png", label: "PNG" }]} />
+            <Segmented label="Format" value={format} onChange={setFormat} options={[{ value: "ai", label: ".Ai" }, { value: "svg", label: ".SVG" }, { value: "png", label: ".PNG" }]} />
             {format === "png" && (
               <div className="flex flex-col gap-2.5">
                 <div className="flex items-center justify-between gap-2">
@@ -374,7 +374,7 @@ export function ResultWorkspace({ result, versions, onPickVersion, onNew, onReru
               className="inline-flex h-[50px] items-center justify-center gap-2.5 rounded-[13px] bg-primary text-[15px] font-semibold text-primary-foreground disabled:opacity-50"
             >
               <Download className="h-[18px] w-[18px]" aria-hidden="true" />
-              {format === "png" && preparing ? "Preparing PNG…" : format === "png" ? "Download PNG" : format === "ai" ? "Download AI" : "Download SVG"}
+              {format === "png" && preparing ? "Preparing .PNG…" : format === "png" ? "Download .PNG" : format === "ai" ? "Download .Ai" : "Download .SVG"}
             </button>
             <p className="text-center text-xs text-muted-foreground">
               {canvas === "board" && <>Centred on a {BOARD.width} × {BOARD.height} board. </>}
@@ -434,7 +434,7 @@ export function ResultWorkspace({ result, versions, onPickVersion, onNew, onReru
             </fieldset>
             <button type="button" disabled={saving || (sheetFormat !== "svg" && sheetFormat !== "ai" && !sheetPngs)} onClick={() => save(sheetFormat, canvas, sheetPngs)} className="inline-flex h-[54px] items-center justify-center gap-2.5 rounded-[15px] bg-primary text-base font-semibold text-primary-foreground disabled:opacity-50">
               <Download className="h-[18px] w-[18px]" aria-hidden="true" />
-              {saving ? "Opening save options…" : sheetFormat === "svg" ? "Save SVG" : sheetFormat === "ai" ? "Save AI" : "Save PNG"}
+              {saving ? "Opening save options…" : sheetFormat === "svg" ? "Save .SVG" : sheetFormat === "ai" ? "Save .Ai" : "Save .PNG"}
             </button>
             <button type="button" onClick={copy} className="inline-flex h-12 items-center justify-center gap-2.5 rounded-[14px] border border-border bg-card text-[15px] font-medium">
               <Copy className="h-4 w-4" aria-hidden="true" />

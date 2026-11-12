@@ -145,8 +145,8 @@ export function BatchLogoTask({
         )}
         {output && !drifted && (
           <div className="grid grid-cols-3 gap-1.5">
-            <button type="button" aria-label={`Save SVG ${job.file.name}`} onClick={() => { void saveLogoSvg(output.svgFile).catch((e: unknown) => setError(e instanceof Error ? e.message : "Saving failed.")); }} className="h-10 rounded-[10px] bg-primary text-[13px] font-semibold text-primary-foreground">SVG</button>
-            <button type="button" aria-label={`Save Illustrator file ${job.file.name}`} onClick={() => { void saveLogoSvg(output.aiFile).catch((e: unknown) => setError(e instanceof Error ? e.message : "Saving failed.")); }} className="h-10 rounded-[10px] border border-border text-[13px] font-medium">AI</button>
+            <button type="button" aria-label={`Save SVG ${job.file.name}`} onClick={() => { void saveLogoSvg(output.svgFile).catch((e: unknown) => setError(e instanceof Error ? e.message : "Saving failed.")); }} className="h-10 rounded-[10px] bg-primary text-[13px] font-semibold text-primary-foreground">.SVG</button>
+            <button type="button" aria-label={`Save Illustrator file ${job.file.name}`} onClick={() => { void saveLogoSvg(output.aiFile).catch((e: unknown) => setError(e instanceof Error ? e.message : "Saving failed.")); }} className="h-10 rounded-[10px] border border-border text-[13px] font-medium">.Ai</button>
             <button
               type="button"
               disabled={saving}
@@ -158,7 +158,7 @@ export function BatchLogoTask({
               }}
               className="h-10 rounded-[10px] border border-border text-[13px] font-medium"
             >
-              PNG
+              .PNG
             </button>
           </div>
         )}

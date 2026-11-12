@@ -74,7 +74,7 @@ export function BriefBatch({ onOpen }: { onOpen: (c: ConceptState, brief: LogoBr
               {tasks.length} brief{tasks.length === 1 ? "" : "s"} <span className="font-normal text-muted-foreground">· {readyFiles.length} ready</span>
             </h2>
             <div className="flex items-center gap-2">
-              <Segmented size="sm" label="Download format" value={format} onChange={setFormat} options={[{ value: "ai", label: "AI" }, { value: "svg", label: "SVG" }, { value: "png", label: "PNG" }]} className="w-[180px]" />
+              <Segmented size="sm" label="Download format" value={format} onChange={setFormat} options={[{ value: "ai", label: ".Ai" }, { value: "svg", label: ".SVG" }, { value: "png", label: ".PNG" }]} className="w-[180px]" />
               <button type="button" onClick={saveAll} disabled={!readyFiles.length} className="inline-flex h-10 items-center gap-2 rounded-xl bg-primary px-3.5 text-sm font-semibold text-primary-foreground disabled:opacity-40">
                 <Download className="h-4 w-4" aria-hidden="true" />
                 Download all

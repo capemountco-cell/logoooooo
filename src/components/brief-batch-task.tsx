@@ -118,10 +118,10 @@ export function BriefBatchTask({
       {chosen && (
         <div className="grid grid-cols-4 gap-1.5">
           <button type="button" disabled={!files} onClick={() => files && save(files.svgFile)} aria-label={`Save SVG for ${job.brief?.brandName ?? "logo"}`} className="h-10 rounded-[10px] bg-primary text-[13px] font-semibold text-primary-foreground disabled:opacity-50">
-            {preparing ? "…" : "SVG"}
+            {preparing ? "…" : ".SVG"}
           </button>
-          <button type="button" disabled={!files} onClick={() => files && save(files.aiFile)} aria-label={`Save Illustrator file for ${job.brief?.brandName ?? "logo"}`} className="h-10 rounded-[10px] border border-border text-[13px] font-medium disabled:opacity-50">AI</button>
-          <button type="button" disabled={!files} onClick={() => files && save(files.pngFile, true)} aria-label={`Save PNG for ${job.brief?.brandName ?? "logo"}`} className="h-10 rounded-[10px] border border-border text-[13px] font-medium disabled:opacity-50">PNG</button>
+          <button type="button" disabled={!files} onClick={() => files && save(files.aiFile)} aria-label={`Save Illustrator file for ${job.brief?.brandName ?? "logo"}`} className="h-10 rounded-[10px] border border-border text-[13px] font-medium disabled:opacity-50">.Ai</button>
+          <button type="button" disabled={!files} onClick={() => files && save(files.pngFile, true)} aria-label={`Save PNG for ${job.brief?.brandName ?? "logo"}`} className="h-10 rounded-[10px] border border-border text-[13px] font-medium disabled:opacity-50">.PNG</button>
           <button type="button" onClick={() => job.brief && onOpen(chosen, job.brief)} aria-label="Open in the editor" className="inline-flex h-10 items-center justify-center rounded-[10px] border border-border">
             <Maximize2 className="h-4 w-4" aria-hidden="true" />
           </button>
