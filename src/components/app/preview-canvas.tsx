@@ -152,7 +152,7 @@ export function PreviewCanvas({
               onClick={() => onView(t.id)}
               className={cn(
                 "h-9 rounded-[9px] px-3 text-[13px] font-medium sm:px-3.5",
-                view === t.id ? "bg-foreground text-primary-foreground" : "text-subtle hover:text-foreground",
+                view === t.id ? "bg-accent text-foreground shadow-[inset_0_0_0_1px_rgba(255,255,255,0.08)]" : "text-subtle hover:text-foreground",
               )}
             >
               {t.label}
@@ -177,7 +177,7 @@ export function PreviewCanvas({
                 onClick={() => setPoints((p) => !p)}
                 className={cn(
                   "h-[40px] rounded-xl border border-border px-3 text-[13px] font-medium shadow-[0_2px_8px_rgba(0,0,0,0.06)]",
-                  points ? "bg-foreground text-primary-foreground" : "bg-card text-subtle hover:text-foreground",
+                  points ? "bg-accent text-foreground shadow-[inset_0_0_0_1px_rgba(255,255,255,0.08)]" : "bg-card text-subtle hover:text-foreground",
                 )}
               >
                 Points

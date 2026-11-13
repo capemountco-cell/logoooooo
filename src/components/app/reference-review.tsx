@@ -129,11 +129,11 @@ export function ReferenceReview({
         </ul>
 
         <div className="flex flex-wrap gap-2">
-          <button type="button" disabled={Boolean(working) || status === "searching"} onClick={() => void run("find", onFindNew)} className="inline-flex h-10 items-center gap-1.5 rounded-full border border-border px-3.5 text-sm font-medium disabled:opacity-50">
+          <button type="button" disabled={Boolean(working) || status === "searching"} onClick={() => void run("find", onFindNew)} className="inline-flex h-10 items-center gap-1.5 rounded-lg border border-border px-3.5 text-sm font-medium disabled:opacity-50">
             <RefreshCw className={cn("h-3.5 w-3.5", working === "find" && "animate-spin")} aria-hidden="true" />
             Find new references
           </button>
-          <label {...drop.handlers} className={cn("inline-flex h-10 cursor-pointer items-center gap-1.5 rounded-full border border-dashed px-3.5 text-sm font-medium", drop.dragging ? "border-blue bg-blue/10" : "border-line hover:border-line-strong")}>
+          <label {...drop.handlers} className={cn("inline-flex h-10 cursor-pointer items-center gap-1.5 rounded-lg border border-dashed px-3.5 text-sm font-medium", drop.dragging ? "border-blue bg-blue/10" : "border-line hover:border-line-strong")}>
             {working === "upload" ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" /> : <ImagePlus className="h-3.5 w-3.5" aria-hidden="true" />}
             Add your own
             <input type="file" accept="image/png,image/jpeg,image/webp,image/gif" className="sr-only" aria-label="Upload a reference" disabled={Boolean(working)} onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ""; if (f) void run("upload", () => onUpload(f, swapRole)); }} />
@@ -159,14 +159,14 @@ export function ReferenceReview({
               placeholder="Paste a link — a site, Dribbble shot, image…"
               aria-label="Reference link"
               disabled={Boolean(working)}
-              className="h-10 min-w-0 flex-1 rounded-full border border-border bg-field px-3.5 text-[13px] outline-none placeholder:text-muted-foreground focus:bg-field-focus"
+              className="h-10 min-w-0 flex-1 rounded-lg border border-border bg-field px-3.5 text-[13px] outline-none placeholder:text-muted-foreground focus:bg-field-focus"
             />
-            <select value={linkRole} onChange={(e) => setLinkRole(e.target.value as ReferenceRole)} aria-label="Use the link for" className="h-10 rounded-full border border-border bg-field px-2.5 text-[12px] outline-none">
+            <select value={linkRole} onChange={(e) => setLinkRole(e.target.value as ReferenceRole)} aria-label="Use the link for" className="h-10 rounded-lg border border-border bg-field px-2.5 text-[12px] outline-none">
               {REFERENCE_ROLES.map((x) => (
                 <option key={x.id} value={x.id}>{x.label}</option>
               ))}
             </select>
-            <button type="submit" disabled={Boolean(working) || !link.trim()} aria-label="Add link as reference" className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-border disabled:opacity-50">
+            <button type="submit" disabled={Boolean(working) || !link.trim()} aria-label="Add link as reference" className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-border disabled:opacity-50">
               {working === "link" ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Link2 className="h-4 w-4" aria-hidden="true" />}
             </button>
           </div>
@@ -204,7 +204,7 @@ export function ReferenceReview({
 
         {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
 
-        <button type="button" disabled={busy || Boolean(working)} onClick={() => { onOpenChange(false); onGenerate(); }} className="mt-auto inline-flex h-12 items-center justify-center gap-2 rounded-full bg-primary text-[15px] font-semibold text-primary-foreground disabled:opacity-40">
+        <button type="button" disabled={busy || Boolean(working)} onClick={() => { onOpenChange(false); onGenerate(); }} className="mt-auto inline-flex h-12 items-center justify-center gap-2 rounded-lg bg-primary text-[15px] font-semibold text-primary-foreground disabled:opacity-40">
           <Sparkles className="h-4 w-4" aria-hidden="true" />
           Generate more with these
         </button>

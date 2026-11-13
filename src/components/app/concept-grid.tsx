@@ -147,7 +147,7 @@ export function ConceptTile({ concept, checks, onPick, compact, selected, label 
           <span className="absolute top-3 left-3 rounded-full bg-black/80 px-2.5 py-1 text-[11px] font-medium text-white">Didn't pass every check</span>
         )}
         {passed && onPick && !compact && (
-          <span className="absolute right-3 bottom-3 inline-flex h-9 items-center gap-1.5 rounded-full bg-black px-3.5 text-[13px] font-semibold text-white opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
+          <span className="absolute right-3 bottom-3 inline-flex h-9 items-center gap-1.5 rounded-lg bg-black px-3.5 text-[13px] font-semibold text-white opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
             Use this logo
             <ArrowUpRight className="h-3.5 w-3.5" aria-hidden="true" />
           </span>
@@ -176,7 +176,7 @@ export function ConceptTile({ concept, checks, onPick, compact, selected, label 
           </div>
           {open && <Checklist concept={concept} checks={checks} />}
           {failed && !shown && concept.image && concept.note !== "Stopped" && (
-            <button type="button" onClick={() => { setReveal(true); setOpen(true); }} className="inline-flex h-9 items-center justify-center gap-1.5 rounded-full border border-border text-[13px] font-medium text-subtle hover:text-foreground">
+            <button type="button" onClick={() => { setReveal(true); setOpen(true); }} className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg border border-border text-[13px] font-medium text-subtle hover:text-foreground">
               <Eye className="h-3.5 w-3.5" aria-hidden="true" />
               Show anyway
             </button>

@@ -1,37 +1,63 @@
+import { forwardRef, type ComponentPropsWithoutRef, type ReactNode } from "react";
+import { LayoutGrid, Settings, Sparkles, Upload } from "lucide-react";
 import { BrandMark } from "./brand";
 import { SettingsSheet } from "./settings-sheet";
 import { cn } from "@/lib/utils";
 
 export type View = "create" | "batch" | "import";
 
-const VIEWS: { id: View; label: string }[] = [
-  { id: "create", label: "Create" },
-  { id: "batch", label: "Batch" },
-  { id: "import", label: "Import" },
+const VIEWS: { id: View; label: string; icon: ReactNode }[] = [
+  { id: "create", label: "Create", icon: <Sparkles className="h-[22px] w-[22px]" strokeWidth={1.6} aria-hidden="true" /> },
+  { id: "batch", label: "Batch", icon: <LayoutGrid className="h-[22px] w-[22px]" strokeWidth={1.6} aria-hidden="true" /> },
+  { id: "import", label: "Import", icon: <Upload className="h-[22px] w-[22px]" strokeWidth={1.6} aria-hidden="true" /> },
 ];
 
-export function AppHeader({ view, onView }: { view: View; onView: (v: View) => void }) {
-  return (
-    <header className="flex items-center justify-between gap-3 px-4 py-4 sm:px-7">
-      <button type="button" onClick={() => onView("create")} className="inline-flex h-10 items-center text-foreground" aria-label="LOGOO home">
-        <BrandMark height={12} />
+/** A Mac toolbar item (Camu's .tool): icon over label, a soft fill when current. */
+export const ToolButton = forwardRef<HTMLButtonElement, ComponentPropsWithoutRef<"button"> & { current?: boolean; icon: ReactNode; label: string; badge?: number | undefined }>(
+  function ToolButton({ current, icon, label, badge, className, ...rest }, ref) {
+    return (
+      <button
+        ref={ref}
+        type="button"
+        aria-current={current ? "page" : undefined}
+        {...rest}
+        className={cn(
+          "relative flex h-[54px] w-[72px] flex-col items-center justify-center gap-1 rounded-[10px] text-[12px] font-medium transition-colors sm:h-[58px] sm:w-[88px]",
+          current ? "bg-[#1c1d1f] font-semibold text-foreground shadow-[inset_0_0_0_1px_rgba(255,255,255,0.08)]" : "text-muted-foreground hover:bg-white/5 hover:text-foreground",
+          className,
+        )}
+      >
+        {icon}
+        <span>{label}</span>
+        {badge ? (
+          <span className="absolute top-1 right-3 h-4 min-w-[18px] rounded-lg bg-pending px-1.5 text-center text-[11px] leading-4 font-bold text-background sm:right-[18px]">{badge}</span>
+        ) : null}
       </button>
-      <div className="flex items-center gap-2">
-        <nav aria-label="Sections" className="flex gap-0.5 rounded-full border border-border p-1">
-          {VIEWS.map((v) => (
-            <button
-              key={v.id}
-              type="button"
-              aria-current={view === v.id ? "page" : undefined}
-              onClick={() => onView(v.id)}
-              className={cn("h-8 rounded-full px-3 text-[13px] font-medium sm:px-3.5", view === v.id ? "bg-foreground text-background" : "text-muted-foreground hover:text-foreground")}
-            >
-              {v.label}
-            </button>
-          ))}
-        </nav>
-        <SettingsSheet />
+    );
+  },
+);
+
+/**
+ * The window top, laid out like Camu's Mac toolbar: the LOGOO wordmark centred in the title row,
+ * then large icon-and-label tools — places on the left, settings on the right. No window buttons:
+ * LOGOO runs in the browser, whose own frame surrounds it.
+ */
+export function AppHeader({ view, onView, badges }: { view: View; onView: (v: View) => void; badges?: Partial<Record<View, number>> }) {
+  return (
+    <header className="flex flex-none flex-col">
+      <div className="flex h-10 items-center justify-center">
+        <button type="button" onClick={() => onView("create")} className="inline-flex h-8 items-center rounded-md px-2 text-foreground" aria-label="LOGOO home">
+          <BrandMark height={12} />
+        </button>
       </div>
+      <nav aria-label="Sections" className="flex items-end justify-between px-2 pb-1 sm:px-3">
+        <div className="flex gap-1">
+          {VIEWS.map((v) => (
+            <ToolButton key={v.id} current={view === v.id} icon={v.icon} label={v.label} badge={badges?.[v.id]} onClick={() => onView(v.id)} />
+          ))}
+        </div>
+        <SettingsSheet trigger={<ToolButton icon={<Settings className="h-[22px] w-[22px]" strokeWidth={1.6} aria-hidden="true" />} label="Settings" aria-label="Settings" />} />
+      </nav>
     </header>
   );
 }

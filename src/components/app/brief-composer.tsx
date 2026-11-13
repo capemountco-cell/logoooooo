@@ -108,20 +108,20 @@ export function BriefComposer({
           {refs.length === 0 && <p className="px-1 text-xs text-muted-foreground">References are optional — LOGOO finds them for you, and you can review them after any round.</p>}
         </div>
         {busy ? (
-          <button type="button" onClick={onCancel} className="inline-flex h-[46px] items-center gap-2 rounded-full border border-border px-4 text-[15px] font-medium">
+          <button type="button" onClick={onCancel} className="inline-flex h-[46px] items-center gap-2 rounded-lg border border-border px-4 text-[15px] font-medium">
             <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
             Reading brief… Cancel
           </button>
         ) : (
           <div className="flex w-full items-center gap-1.5 sm:w-auto">
-            <button type="button" onClick={onReview} disabled={!canSubmit} className="inline-flex h-[46px] items-center whitespace-nowrap rounded-full px-3.5 text-sm font-medium text-subtle hover:text-foreground disabled:opacity-40">
+            <button type="button" onClick={onReview} disabled={!canSubmit} className="inline-flex h-[46px] items-center whitespace-nowrap rounded-lg px-3.5 text-sm font-medium text-subtle hover:text-foreground disabled:opacity-40">
               Review brief<span className="hidden sm:inline">&nbsp;first</span>
             </button>
             <button
               type="button"
               onClick={onGenerate}
               disabled={!canSubmit}
-              className="inline-flex h-[46px] flex-1 items-center justify-center gap-2 whitespace-nowrap rounded-full bg-primary px-5 text-[15px] font-semibold text-primary-foreground transition-opacity disabled:opacity-30 sm:flex-none"
+              className="inline-flex h-[46px] flex-1 items-center justify-center gap-2 whitespace-nowrap rounded-lg bg-primary px-5 text-[15px] font-semibold text-primary-foreground transition-opacity disabled:opacity-30 sm:flex-none"
             >
               Generate concepts
               <ArrowRight className="h-4 w-4" aria-hidden="true" />

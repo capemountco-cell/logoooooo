@@ -72,7 +72,7 @@ export function ProcessingScreen({
               className={cn(
                 "inline-flex h-[34px] items-center gap-2 rounded-full border px-3 text-[13px]",
                 s.state === "done" && "border-border bg-card text-subtle",
-                s.state === "active" && "border-foreground bg-foreground font-medium text-primary-foreground",
+                s.state === "active" && "border-line-strong bg-accent font-medium text-foreground",
                 s.state === "todo" && "border-dashed border-line text-muted-foreground",
               )}
             >

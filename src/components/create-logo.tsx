@@ -56,25 +56,25 @@ export function CreateLogo({ onOpen }: { onOpen: (c: ConceptState, brief: LogoBr
               </p>
             </div>
             <div className="flex flex-wrap gap-2">
-              <button type="button" onClick={() => setReviewing(true)} className="inline-flex h-10 items-center gap-1.5 rounded-full border border-border px-3.5 text-sm font-medium">
+              <button type="button" onClick={() => setReviewing(true)} className="inline-flex h-10 items-center gap-1.5 rounded-lg border border-border px-3.5 text-sm font-medium">
                 <Images className="h-4 w-4" aria-hidden="true" />
                 References{job.refs.length ? ` (${job.refs.length})` : ""}
               </button>
-              <button type="button" onClick={() => { job.cancel(); job.setPhase("brief"); }} className="inline-flex h-10 items-center gap-1.5 rounded-full border border-border px-3.5 text-sm font-medium">
+              <button type="button" onClick={() => { job.cancel(); job.setPhase("brief"); }} className="inline-flex h-10 items-center gap-1.5 rounded-lg border border-border px-3.5 text-sm font-medium">
                 <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
                 Edit brief
               </button>
-              <button type="button" onClick={() => { job.cancel(); job.setPhase("idle"); }} className="inline-flex h-10 items-center gap-1.5 rounded-full border border-border px-3.5 text-sm font-medium">
+              <button type="button" onClick={() => { job.cancel(); job.setPhase("idle"); }} className="inline-flex h-10 items-center gap-1.5 rounded-lg border border-border px-3.5 text-sm font-medium">
                 <Plus className="h-4 w-4" aria-hidden="true" />
                 New brief
               </button>
               {running ? (
-                <button type="button" onClick={job.cancel} className="inline-flex h-10 items-center gap-1.5 rounded-full border border-border px-3.5 text-sm font-medium">
+                <button type="button" onClick={job.cancel} className="inline-flex h-10 items-center gap-1.5 rounded-lg border border-border px-3.5 text-sm font-medium">
                   <Square className="h-3.5 w-3.5" aria-hidden="true" />
                   Stop
                 </button>
               ) : (
-                <button type="button" onClick={() => void job.generate()} className="inline-flex h-10 items-center gap-1.5 rounded-full bg-primary px-4 text-sm font-semibold text-primary-foreground">
+                <button type="button" onClick={() => void job.generate()} className="inline-flex h-10 items-center gap-1.5 rounded-lg bg-primary px-4 text-sm font-semibold text-primary-foreground">
                   <RotateCcw className="h-4 w-4" aria-hidden="true" />
                   {roundSize()} more concepts
                 </button>
