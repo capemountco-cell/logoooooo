@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { whiteToArtboard } from "@/lib/artboard";
-import { ArrowUpRight, Check, ChevronDown, Circle, CircleAlert, Eye, Loader2, RotateCcw, X } from "lucide-react";
+import { Eye, Loader2, X } from "lucide-react";
 import type { CheckDef } from "@/lib/concept-prompt";
 import type { ConceptState } from "@/lib/concept-pipeline";
 import { cn } from "@/lib/utils";
@@ -67,132 +67,202 @@ export function stageLabel(c: ConceptState, total: number, notes = 0) {
   }
 }
 
-function Checklist({ concept, checks }: { concept: ConceptState; checks: CheckDef[] }) {
-  const failed = concept.stage === "failed";
+const DIRECTION_NAMES = ["Geometric", "Bold", "Refined", "Warm"] as const;
+/** The creative direction a concept was drawn in (concept-prompt.ts DIRECTIONS, by index). */
+export const directionName = (index: number) => DIRECTION_NAMES[index % DIRECTION_NAMES.length]!;
+
+type Tone = "pending" | "success" | "destructive" | "muted";
+
+/** The status colour of a concept: yellow while working, green passed, red not shown. */
+export function conceptTone(c: ConceptState, revealed = false): Tone {
+  if (c.stage === "passed") return "success";
+  if (c.stage === "failed") return revealed ? "pending" : c.note === "Stopped" || c.note === "Interrupted" ? "muted" : "destructive";
+  return c.stage === "queued" ? "muted" : "pending";
+}
+
+function ToneDot({ tone }: { tone: Tone }) {
   return (
-    <ul className="grid grid-cols-1 gap-x-3 gap-y-1.5 pt-1" aria-label="Quality checks">
-      {checks.map((c) => {
-        const r = concept.results.find((x) => x.id === c.id);
-        return (
-          <li key={c.id} className="flex items-center gap-1.5 text-[12px] text-subtle" title={r && !r.pass ? r.issue : undefined}>
-            {!r ? (
-              <Circle className="h-3 w-3 shrink-0 text-line" aria-label="Not checked yet" />
-            ) : r.pass ? (
-              <Check className="h-3.5 w-3.5 shrink-0 text-success" aria-label="Passed" />
-            ) : !c.blocking ? (
-              <CircleAlert className="h-3.5 w-3.5 shrink-0 text-pending" aria-label="Note" />
-            ) : failed ? (
-              <X className="h-3.5 w-3.5 shrink-0 text-destructive" aria-label="Failed" />
-            ) : (
-              <RotateCcw className="h-3 w-3 shrink-0 text-pending" aria-label="Being fixed" />
-            )}
-            <span className="truncate">{c.label}</span>
-            {!c.blocking && r && !r.pass && <span className="shrink-0 text-[10.5px] text-muted-foreground">note</span>}
-          </li>
-        );
-      })}
-    </ul>
+    <span
+      aria-hidden="true"
+      className={cn(
+        "inline-block h-2 w-2 shrink-0 rounded-full",
+        tone === "pending" && "bg-pending",
+        tone === "success" && "bg-success",
+        tone === "destructive" && "bg-destructive",
+        tone === "muted" && "border-[1.5px] border-muted-foreground",
+      )}
+    />
+  );
+}
+
+/** One check as a list row: dot, label, and the issue or note when it didn't pass. */
+function CheckRow({ def, concept }: { def: CheckDef; concept: ConceptState }) {
+  const r = concept.results.find((x) => x.id === def.id);
+  const failed = concept.stage === "failed";
+  const tone: Tone = !r ? "muted" : r.pass ? "success" : !def.blocking ? "pending" : failed ? "destructive" : "pending";
+  const state = !r ? "Not checked yet" : r.pass ? "Passed" : !def.blocking ? "Note" : failed ? "Failed" : "Being fixed";
+  return (
+    <li className="flex min-h-[34px] items-center gap-2.5 border-b border-border/50 px-4 py-1.5 last:border-b-0" title={r && !r.pass ? r.issue : undefined}>
+      <ToneDot tone={tone} />
+      <span className="sr-only">{state}: </span>
+      <span className={cn("min-w-0 flex-1 truncate", !r && "text-muted-foreground")}>{def.label}</span>
+      {r && !r.pass && <span className={cn("shrink-0 text-[12px]", tone === "destructive" ? "text-destructive" : "text-pending")}>{!def.blocking ? "note" : failed ? "failed" : "fixing"}</span>}
+    </li>
   );
 }
 
 /**
- * One concept. The artwork stays blurred until every blocking box passes; boxes that aren't
- * blocking show as notes. A concept that still fails is hidden, with "Show anyway" to reveal it.
+ * One concept as a card (Camu's group style): the artwork on its grey artboard, then a footer row
+ * with a status dot, the creative direction and the AI that drew it. Click selects (details show in
+ * the side panel); double-click, or Enter on a selected card, opens it for export. The artwork stays
+ * blurred until every blocking box passes; a concept that still fails is hidden behind "Show anyway".
  */
-export function ConceptTile({ concept, checks, onPick, compact, selected, label }: { concept: ConceptState; checks: CheckDef[]; onPick?: () => void; compact?: boolean; selected?: boolean; label?: string }) {
-  const [open, setOpen] = useState(false);
-  const [reveal, setReveal] = useState(false);
+export function ConceptTile({
+  concept, checks, onPick, onSelect, selected, label, revealed = false, onReveal, compact,
+}: {
+  concept: ConceptState;
+  checks: CheckDef[];
+  onPick?: (() => void) | undefined;
+  onSelect?: (() => void) | undefined;
+  selected?: boolean | undefined;
+  label?: string | undefined;
+  revealed?: boolean;
+  onReveal?: (() => void) | undefined;
+  compact?: boolean;
+}) {
   const failed = concept.stage === "failed";
-  // A failed concept the user chose to see anyway behaves like a shown one (they can use it).
-  const shown = concept.stage === "passed" || (failed && reveal && Boolean(concept.image));
-  const passed = shown;
+  const shown = concept.stage === "passed" || (failed && revealed && Boolean(concept.image));
   const notes = noteCount(concept, checks);
   const display = useArtboardImage(concept.image, shown);
-  const working = !passed && !failed;
-  const done = concept.results.filter((r) => r.pass).length;
+  const working = !shown && !failed;
   const name = label ?? `Concept ${concept.index + 1}`;
-  return (
-    <article aria-label={`${name} (${PROVIDER[concept.provider]})`} className="group flex flex-col gap-2.5">
+  const tone = conceptTone(concept, revealed);
+  const status = failed && revealed ? "Shown anyway" : stageLabel(concept, checks.length, notes);
+
+  if (compact) {
+    return (
       <button
         type="button"
-        disabled={!passed || !onPick}
-        onClick={onPick}
-        aria-label={passed ? `Use ${name.toLowerCase()}` : undefined}
-        className={cn(
-          "relative flex aspect-square w-full items-center justify-center overflow-hidden disabled:cursor-default",
-          compact ? "rounded-[12px]" : "rounded-[18px]",
-          passed ? "bg-artboard" : "bg-field",
-          selected && "ring-2 ring-foreground ring-offset-2 ring-offset-background",
-        )}
+        onClick={onSelect ?? onPick}
+        disabled={!shown}
+        aria-label={`${name} (${PROVIDER[concept.provider]}): ${status}`}
+        aria-pressed={selected}
+        title={status}
+        className={cn("relative flex aspect-square w-full items-center justify-center overflow-hidden rounded-lg border disabled:cursor-default", shown ? "border-border bg-artboard" : "border-border bg-card-head", selected ? "border-primary ring-1 ring-primary" : "")}
+      >
+        {concept.image && (!failed || shown) && <img src={shown ? (display ?? concept.image) : concept.image} alt="" className={cn("h-full w-full object-contain", working && "scale-110 opacity-40 blur-xl")} />}
+        {working && <Loader2 className="absolute h-4 w-4 animate-spin text-pending" aria-hidden="true" />}
+        {failed && !shown && <X className="h-4 w-4 text-muted-foreground" aria-hidden="true" />}
+      </button>
+    );
+  }
+
+  return (
+    <article
+      aria-label={`${name}, ${directionName(concept.index)} (${PROVIDER[concept.provider]})`}
+      className={cn("group flex flex-col overflow-hidden rounded-xl border bg-card transition-colors", selected ? "border-primary shadow-[0_0_0_1px_var(--color-primary)]" : "border-border hover:border-input")}
+    >
+      <button
+        type="button"
+        onClick={onSelect}
+        onDoubleClick={shown ? onPick : undefined}
+        aria-pressed={selected}
+        aria-label={`${shown ? "Select" : "Show details of"} ${name.toLowerCase()}`}
+        className={cn("relative flex aspect-[4/3] w-full items-center justify-center overflow-hidden", shown ? "bg-artboard" : "bg-card-head")}
       >
         {concept.image && (!failed || shown) && (
-          <img src={shown ? (display ?? concept.image) : concept.image} alt={passed ? `Logo ${name.toLowerCase()}` : ""} className={cn("h-full w-full object-contain transition-[filter,opacity,transform] duration-700", working && "scale-110 opacity-45 blur-2xl")} />
+          <img src={shown ? (display ?? concept.image) : concept.image} alt={shown ? `Logo ${name.toLowerCase()}` : ""} className={cn("h-full w-full object-contain transition-[filter,opacity,transform] duration-700", working && "scale-110 opacity-40 blur-2xl")} />
         )}
         {working && (
-          <span className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-black/30 text-center">
-            <Loader2 className={cn("animate-spin text-white", compact ? "h-4 w-4" : "h-5 w-5")} aria-hidden="true" />
-            {!compact && <span className="text-[13px] font-medium text-white">{stageLabel(concept, checks.length, notes)}</span>}
-            {!compact && (concept.fixes > 0 || concept.redraws > 0) && (
-              <span className="font-mono text-[10.5px] text-white/60">{concept.redraws ? "fresh drawing · " : ""}fix round {concept.fixes}</span>
-            )}
+          <span className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-center text-subtle">
+            <Loader2 className="h-5 w-5 animate-spin text-pending" aria-hidden="true" />
+            <span className="text-[13px]">{status}</span>
+            {(concept.fixes > 0 || concept.redraws > 0) && <span className="text-[11px] text-muted-foreground">{concept.redraws ? "fresh drawing · " : ""}fix {concept.fixes} of 2</span>}
           </span>
         )}
         {failed && !shown && (
-          <span className="flex flex-col items-center gap-1.5 px-5 text-center">
-            <X className="h-5 w-5 text-muted-foreground" aria-hidden="true" />
-            {!compact && <span className="text-[13px] text-muted-foreground">{concept.note === "Stopped" ? "Stopped" : concept.note || "Didn't pass every check"}</span>}
-          </span>
-        )}
-        {failed && shown && !compact && (
-          <span className="absolute top-3 left-3 rounded-full bg-black/80 px-2.5 py-1 text-[11px] font-medium text-white">Didn't pass every check</span>
-        )}
-        {passed && onPick && !compact && (
-          <span className="absolute right-3 bottom-3 inline-flex h-9 items-center gap-1.5 rounded-lg bg-black px-3.5 text-[13px] font-semibold text-white opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
-            Use this logo
-            <ArrowUpRight className="h-3.5 w-3.5" aria-hidden="true" />
+          <span className="flex flex-col items-center gap-1.5 px-5 text-center text-muted-foreground">
+            <X className="h-5 w-5" aria-hidden="true" />
+            <span className="text-[13px]">{concept.note === "Stopped" || concept.note === "Interrupted" ? concept.note : "Didn't pass every check"}</span>
           </span>
         )}
       </button>
-
-      {compact ? (
-        <div className="flex items-center justify-between gap-1 px-0.5" title={stageLabel(concept, checks.length, notes)}>
-          <span className="font-mono text-[10px] tracking-[0.04em] text-muted-foreground uppercase">{PROVIDER[concept.provider]}</span>
-          {passed ? <Check className="h-3.5 w-3.5 text-success" aria-label={stageLabel(concept, checks.length, notes)} /> : failed ? <X className="h-3.5 w-3.5 text-muted-foreground" aria-label="Not shown" /> : <Loader2 className="h-3.5 w-3.5 animate-spin text-subtle" aria-label={stageLabel(concept, checks.length, notes)} />}
-        </div>
-      ) : (
-        <div className="flex flex-col gap-2 px-0.5">
-          <div className="flex items-center justify-between gap-2">
-            <span className="flex min-w-0 items-baseline gap-2">
-              <span className="hidden truncate text-[13px] font-medium sm:inline">{name}</span>
-              <span className="font-mono text-[10.5px] tracking-[0.04em] text-muted-foreground uppercase">{PROVIDER[concept.provider]}</span>
-            </span>
-            <button type="button" onClick={() => setOpen((o) => !o)} aria-expanded={open} aria-label={`${failed && shown ? "Shown anyway" : stageLabel(concept, checks.length, notes)} — show checks`} className={cn("inline-flex h-8 shrink-0 items-center gap-1 rounded-lg px-1.5 text-xs font-medium", concept.stage === "passed" ? (notes ? "text-pending" : "text-success") : "text-subtle")}>
-              {failed && shown ? "Shown anyway" : stageLabel(concept, checks.length, notes)}
-              <ChevronDown className={cn("h-3.5 w-3.5 transition-transform", open && "rotate-180")} aria-hidden="true" />
-            </button>
-          </div>
-          <div className="h-[3px] overflow-hidden rounded-full bg-muted" role="progressbar" aria-label="Checks passed" aria-valuemin={0} aria-valuemax={checks.length} aria-valuenow={done}>
-            <div className={cn("h-full rounded-full transition-[width] duration-500", concept.stage === "passed" ? (notes ? "bg-pending" : "bg-success") : failed ? "bg-line" : "bg-foreground")} style={{ width: `${checks.length ? (done / checks.length) * 100 : 0}%` }} />
-          </div>
-          {open && <Checklist concept={concept} checks={checks} />}
-          {failed && !shown && concept.image && concept.note !== "Stopped" && (
-            <button type="button" onClick={() => { setReveal(true); setOpen(true); }} className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg border border-border text-[13px] font-medium text-subtle hover:text-foreground">
-              <Eye className="h-3.5 w-3.5" aria-hidden="true" />
-              Show anyway
-            </button>
-          )}
-        </div>
-      )}
+      <div className="flex h-[38px] items-center gap-2 border-t border-border px-3">
+        <ToneDot tone={tone} />
+        <span className="truncate font-medium">{directionName(concept.index)}</span>
+        {shown && notes > 0 && <span className="shrink-0 text-[12px] text-pending">· {notes} note{notes === 1 ? "" : "s"}</span>}
+        {failed && revealed && <span className="shrink-0 text-[12px] text-pending">· shown anyway</span>}
+        <span className="flex-1" />
+        {failed && !shown && concept.image && concept.note !== "Stopped" && onReveal ? (
+          <button type="button" onClick={onReveal} className="inline-flex h-6 shrink-0 items-center gap-1 rounded-md px-1.5 text-[12px] font-medium text-subtle hover:bg-secondary hover:text-foreground">
+            <Eye className="h-3.5 w-3.5" aria-hidden="true" />
+            Show anyway
+          </button>
+        ) : (
+          <span className="shrink-0 text-[12px] text-muted-foreground">{PROVIDER[concept.provider]}</span>
+        )}
+      </div>
     </article>
   );
 }
 
-export function ConceptGrid({ concepts, checks, onPick, offset = 0 }: { concepts: ConceptState[]; checks: CheckDef[]; onPick: (c: ConceptState) => void; offset?: number }) {
+/** Hex colours named in the brief ("Primary Ember #C2410C"), for the palette card. */
+export function briefSwatches(colors: string[]) {
+  return colors
+    .map((c) => {
+      const hex = c.match(/#[0-9a-f]{6}\b/i)?.[0];
+      return hex ? { hex: hex.toUpperCase(), name: c.replace(hex, "").replace(/^(primary|accent|neutral|secondary)\s+/i, "").trim() || hex.toUpperCase() } : null;
+    })
+    .filter((x): x is { hex: string; name: string } => Boolean(x));
+}
+
+/** The side panel for the selected concept: its checks, the palette, and the export action. */
+export function ConceptDetail({
+  concept, checks, label, colors, revealed, onOpen, opening,
+}: {
+  concept: ConceptState | null;
+  checks: CheckDef[];
+  label: string;
+  colors: string[];
+  revealed: boolean;
+  onOpen: () => void;
+  opening?: boolean;
+}) {
+  if (!concept) {
+    return <p className="px-1 py-2 text-[13px] text-muted-foreground">Select a concept to see its checks.</p>;
+  }
+  const passedCount = concept.results.filter((r) => r.pass).length;
+  const usable = concept.stage === "passed" || (concept.stage === "failed" && revealed && Boolean(concept.image));
+  const swatches = briefSwatches(colors);
   return (
-    <div className={cn("grid w-full grid-cols-2 gap-x-4 gap-y-6 sm:gap-x-5", concepts.length === 3 ? "sm:grid-cols-3" : "lg:grid-cols-4")}>
-      {concepts.map((c) => (
-        <ConceptTile key={c.index} concept={c} checks={checks} onPick={() => onPick(c)} label={`Concept ${offset + c.index + 1}`} />
-      ))}
-    </div>
+    <>
+      <div className="flex h-[30px] items-center gap-2">
+        <span className="font-semibold">{label}</span>
+        <span className="text-muted-foreground">{directionName(concept.index)} · {PROVIDER[concept.provider]}</span>
+      </div>
+      <section className="overflow-hidden rounded-xl border border-border bg-card" aria-label="Checks">
+        <div className="flex h-9 items-center gap-2 border-b border-border bg-card-head px-4 font-medium text-subtle">
+          Checks <span className="text-muted-foreground tabular-nums">{passedCount} of {checks.length}</span>
+        </div>
+        <ul>
+          {checks.map((d) => <CheckRow key={d.id} def={d} concept={concept} />)}
+        </ul>
+      </section>
+      {swatches.length > 0 && (
+        <section className="overflow-hidden rounded-xl border border-border bg-card" aria-label="Palette">
+          <div className="flex h-9 items-center border-b border-border bg-card-head px-4 font-medium text-subtle">Palette</div>
+          <div className="flex gap-2 px-4 pt-3">
+            {swatches.map((s) => <span key={s.hex} className="h-7 flex-1 rounded-md shadow-[inset_0_0_0_1px_rgba(255,255,255,0.08)]" style={{ background: s.hex }} title={`${s.name} ${s.hex}`} />)}
+          </div>
+          <p className="px-4 pt-2 pb-3 text-[12px] text-muted-foreground">{swatches.map((s) => `${s.name} ${s.hex}`).join(" · ")}</p>
+        </section>
+      )}
+      <span className="flex-1" />
+      <button type="button" disabled={!usable || opening} onClick={onOpen} className="inline-flex h-[34px] flex-none items-center justify-center gap-2 rounded-lg bg-primary text-[13px] font-semibold text-primary-foreground disabled:opacity-40">
+        {opening ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" /> : null}
+        Trace &amp; export
+        <span className="hidden sm:inline-flex"><kbd className="kbd font-sans">↵</kbd></span>
+      </button>
+    </>
   );
 }

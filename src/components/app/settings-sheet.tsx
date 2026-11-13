@@ -33,7 +33,7 @@ function saveSettings(s: AppSettings) {
 
 /** Settings: automatic references (on by default), and optional extras the user opts in to. */
 /** `trigger`: the button that opens the sheet (the toolbar's Settings tool). */
-export function SettingsSheet({ trigger }: { trigger?: ReactNode } = {}) {
+export function SettingsSheet({ trigger, open, onOpenChange }: { trigger?: ReactNode; open?: boolean; onOpenChange?: (open: boolean) => void } = {}) {
   const [settings, setSettings] = useState<AppSettings>(DEFAULT_SETTINGS);
   useEffect(() => setSettings(loadSettings()), []);
   const set = (patch: Partial<AppSettings>) => {
@@ -48,7 +48,7 @@ export function SettingsSheet({ trigger }: { trigger?: ReactNode } = {}) {
     { key: "mockups", title: "Mockups", note: "Your logo on cards, signage and merchandise. Uses extra image generations.", soon: true },
   ];
   return (
-    <Sheet>
+    <Sheet {...(open !== undefined ? { open } : {})} {...(onOpenChange ? { onOpenChange } : {})}>
       <SheetTrigger asChild>
         {trigger ?? (
           <button type="button" aria-label="Settings" className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-border text-muted-foreground hover:text-foreground">

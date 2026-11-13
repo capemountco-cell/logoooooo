@@ -1,11 +1,15 @@
 import { useMemo, useRef, useState } from "react";
-import { ArrowRight, FileText, Loader2, Scissors } from "lucide-react";
+import { FileText, Link2, Loader2, Scissors, Sparkles } from "lucide-react";
 import { extractBrief, type PreparedRef } from "@/lib/concept-client";
 import { BRIEF_FILE_ACCEPT } from "@/lib/brief-extract";
 import { cleanPastedBrief } from "@/lib/clean-paste";
 import { useImageDrop } from "@/hooks/use-image-drop";
 import { cn } from "@/lib/utils";
 import { ReferencePicker } from "./reference-picker";
+import { Btn, MOD } from "./mac";
+import { findLinks } from "@/lib/link-reference";
+
+const hostOf = (url: string) => { try { return new URL(url).hostname.replace(/^www\./, ""); } catch { return url; } };
 
 /**
  * The one input the app starts with: a brief in your own words, pasted straight from a web page or
@@ -55,81 +59,80 @@ export function BriefComposer({
   // Screenshots can be dropped onto the brief box or pasted into it (⌘V / Ctrl+V).
   const drop = useImageDrop((files) => { const f = files[0]; if (f) void read(f); }, locked);
 
+  const links = useMemo(() => findLinks(notes), [notes]);
+
   return (
-    <section aria-label="Logo brief" className="flex w-full max-w-[760px] flex-col gap-3 rounded-[24px] border border-border bg-card p-3">
-      <div className="relative flex flex-col" {...drop.handlers}>
-        <textarea
-          aria-label="Brief"
-          value={notes}
-          onChange={(e) => onNotes(e.target.value)}
-          onKeyDown={(e) => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey) && canSubmit) onGenerate(); }}
-          onPaste={(e) => {
-            const img = Array.from(e.clipboardData.files).find((f) => f.type.startsWith("image/"));
-            if (img) { e.preventDefault(); void read(img); }
-          }}
-          disabled={locked}
-          rows={6}
-          placeholder={"Write, paste or upload a brief…\n\nType it however it comes to mind, paste a whole page — a job post, contest listing or email — or drop in a screenshot. Menus and footers are cleaned out; links to a reference (\"style reference: https://…\") are opened and used for that role."}
-          className={cn(
-            "max-h-[50vh] min-h-[176px] w-full resize-y rounded-[16px] bg-field px-4 py-3.5 text-base leading-relaxed outline-none placeholder:text-muted-foreground focus:bg-field-focus disabled:opacity-60",
-            drop.dragging && "ring-2 ring-blue",
+    <div className="flex w-full max-w-[760px] flex-col items-center gap-5">
+      <section aria-label="Logo brief" className="w-full overflow-hidden rounded-[14px] border border-input bg-card shadow-[inset_0_1px_0_rgba(255,255,255,0.03),0_12px_32px_rgba(0,0,0,0.25)]">
+        <div className="relative" {...drop.handlers}>
+          <textarea
+            aria-label="Brief"
+            value={notes}
+            onChange={(e) => onNotes(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey) && canSubmit) { e.preventDefault(); onGenerate(); } }}
+            onPaste={(e) => {
+              const img = Array.from(e.clipboardData.files).find((f) => f.type.startsWith("image/"));
+              if (img) { e.preventDefault(); void read(img); }
+            }}
+            disabled={locked}
+            rows={8}
+            autoFocus
+            placeholder={"Write, paste or upload a brief…\n\nType it however it comes to mind, paste a whole page — a job post, contest listing or email — or drop in a screenshot. Links to a reference (\"style reference: https://…\") are opened and used for that role."}
+            className={cn(
+              "block max-h-[50vh] min-h-[200px] w-full resize-y bg-transparent px-5 py-4 text-[14px] leading-relaxed outline-none placeholder:text-muted-foreground disabled:opacity-60",
+              drop.dragging && "bg-primary/5 ring-2 ring-primary ring-inset",
+            )}
+          />
+          {reading && (
+            <span className="absolute inset-0 flex items-center justify-center gap-2 bg-black/60 text-[13px] font-medium text-white" role="status">
+              <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+              Reading your brief…
+              <button type="button" onClick={() => { abort.current?.abort(); setReading(false); }} className="ml-1 rounded-md border border-white/30 px-2 py-0.5 text-xs">Cancel</button>
+            </span>
           )}
-        />
-        {reading && (
-          <span className="absolute inset-0 flex items-center justify-center gap-2 rounded-[16px] bg-black/60 text-sm font-medium text-white" role="status">
-            <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-            Reading your brief…
-            <button type="button" onClick={() => { abort.current?.abort(); setReading(false); }} className="ml-1 rounded-full border border-white/30 px-2.5 py-1 text-xs">Cancel</button>
-          </span>
-        )}
-      </div>
-      {(readNote || readError || removed > 0) && (
-        <div className="flex flex-col gap-1 px-1 text-xs">
-          {readNote && <p className="flex items-center gap-1.5 text-success" role="status"><FileText className="h-3.5 w-3.5" aria-hidden="true" />{readNote}</p>}
-          {readError && <p className="text-destructive" role="alert">{readError}</p>}
+        </div>
+        <div className="flex flex-wrap items-center gap-2 border-t border-border bg-[#1a1a1c] px-3 py-2.5">
+          {links.map((l) => (
+            <span key={l.url} className="inline-flex h-6 max-w-[260px] items-center gap-1.5 rounded-full bg-primary/15 px-2.5 text-[12px] font-medium text-[#a9b0f0]" title={`${l.url} — opened as a ${l.role} reference`}>
+              <Link2 className="h-3 w-3 shrink-0" aria-hidden="true" />
+              <span className="truncate">{hostOf(l.url)} · {l.role}</span>
+            </span>
+          ))}
+          {readNote && <span className="inline-flex items-center gap-1.5 text-[12px] text-success" role="status"><FileText className="h-3.5 w-3.5" aria-hidden="true" />{readNote}</span>}
           {removed > 0 && (
-            <p className="flex items-center gap-1.5 text-muted-foreground" role="status">
+            <span className="inline-flex items-center gap-1.5 text-[12px] text-muted-foreground" role="status">
               <Scissors className="h-3.5 w-3.5" aria-hidden="true" />
-              {removed} line{removed === 1 ? "" : "s"} of page clutter will be left out.
-            </p>
+              {removed} clutter line{removed === 1 ? "" : "s"} left out
+            </span>
           )}
+          <span className="flex-1" />
+          <label className={cn("inline-flex h-7 cursor-pointer items-center gap-2 rounded-lg border border-input bg-card px-3 text-[13px] font-medium hover:bg-secondary", locked && "pointer-events-none opacity-50")}>
+            <FileText className="h-3.5 w-3.5" aria-hidden="true" />
+            Upload brief
+            <input type="file" accept={BRIEF_FILE_ACCEPT} disabled={locked} aria-label="Upload a brief (screenshot, PDF or text file)" className="sr-only" onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ""; if (f) void read(f); }} />
+          </label>
+          <ReferencePicker refs={refs} onChange={onRefs} disabled={locked} />
+        </div>
+      </section>
+
+      {readError && <p className="text-[13px] text-destructive" role="alert">{readError}</p>}
+
+      {busy ? (
+        <Btn size="md" onClick={onCancel} kbd="esc">
+          <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
+          Reading brief… Cancel
+        </Btn>
+      ) : (
+        <div className="flex w-full items-center justify-center gap-2.5">
+          <Btn size="md" onClick={onReview} disabled={!canSubmit}>Review<span className="hidden sm:inline">&nbsp;brief first</span></Btn>
+          <Btn size="md" variant="primary" onClick={onGenerate} disabled={!canSubmit} kbd={`${MOD}↵`} className="flex-1 sm:flex-none">
+            <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />
+            Generate concepts
+          </Btn>
         </div>
       )}
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div className="flex flex-col gap-1.5">
-          <div className="flex flex-wrap items-center gap-2">
-            <label className={cn("inline-flex h-[52px] cursor-pointer items-center gap-2 rounded-xl border border-border px-3.5 text-[13px] font-medium text-subtle hover:text-foreground", locked && "pointer-events-none opacity-50")}>
-              <FileText className="h-4 w-4" aria-hidden="true" />
-              Upload brief
-              <input type="file" accept={BRIEF_FILE_ACCEPT} disabled={locked} aria-label="Upload a brief (screenshot, PDF or text file)" className="sr-only" onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ""; if (f) void read(f); }} />
-            </label>
-            <ReferencePicker refs={refs} onChange={onRefs} disabled={locked} />
-          </div>
-          {refs.length === 0 && <p className="px-1 text-xs text-muted-foreground">References are optional — LOGOO finds them for you, and you can review them after any round.</p>}
-        </div>
-        {busy ? (
-          <button type="button" onClick={onCancel} className="inline-flex h-[46px] items-center gap-2 rounded-lg border border-border px-4 text-[15px] font-medium">
-            <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-            Reading brief… Cancel
-          </button>
-        ) : (
-          <div className="flex w-full items-center gap-1.5 sm:w-auto">
-            <button type="button" onClick={onReview} disabled={!canSubmit} className="inline-flex h-[46px] items-center whitespace-nowrap rounded-lg px-3.5 text-sm font-medium text-subtle hover:text-foreground disabled:opacity-40">
-              Review brief<span className="hidden sm:inline">&nbsp;first</span>
-            </button>
-            <button
-              type="button"
-              onClick={onGenerate}
-              disabled={!canSubmit}
-              className="inline-flex h-[46px] flex-1 items-center justify-center gap-2 whitespace-nowrap rounded-lg bg-primary px-5 text-[15px] font-semibold text-primary-foreground transition-opacity disabled:opacity-30 sm:flex-none"
-            >
-              Generate concepts
-              <ArrowRight className="h-4 w-4" aria-hidden="true" />
-            </button>
-          </div>
-        )}
-      </div>
-      {error && <p role="alert" className="px-1 text-sm text-destructive">{error}</p>}
-    </section>
+      {error && <p role="alert" className="text-[13px] text-destructive">{error}</p>}
+      {refs.length === 0 && !error && <p className="text-[12px] text-muted-foreground">References are optional — LOGOO finds them for you, and you can review them after any round.</p>}
+    </div>
   );
 }

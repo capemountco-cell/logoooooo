@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { AlertCircle, ArrowLeft, ArrowUp, ChevronDown, Copy, Download, Plus, RotateCw, Type } from "lucide-react";
 import { Drawer, DrawerContent, DrawerDescription, DrawerTitle } from "@/components/ui/drawer";
 import { renderPngPair } from "@/lib/logo-convert";
@@ -8,6 +8,7 @@ import { isOverlay } from "@/lib/color-trace";
 import { pngPairFiles, type Canvas, type LogoResult, type PngPair, type Variant } from "@/lib/result-model";
 import { BOARD } from "@/lib/board";
 import { savePng } from "@/lib/save-png";
+import { Btn, Kbd, MOD, useShortcuts } from "./mac";
 import { cn } from "@/lib/utils";
 import { modeInfo } from "./modes";
 import { PreviewCanvas, type PreviewView } from "./preview-canvas";
@@ -60,6 +61,13 @@ export function ResultWorkspace({ result, versions, onPickVersion, onNew, onReru
   const [prepared, setPrepared] = useState<Record<string, PngPair>>({});
   const [preparing, setPreparing] = useState(false);
   const [copied, setCopied] = useState(false);
+  const downloadRef = useRef<HTMLButtonElement>(null);
+  // ⌘S downloads in the chosen format, ⌘⇧C copies the SVG, Esc goes back.
+  useShortcuts([
+    { keys: "mod+s", run: () => downloadRef.current?.click() },
+    { keys: "mod+shift+c", run: () => copy() },
+    { keys: "escape", run: onNew },
+  ]);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [sheet, setSheet] = useState(false);
@@ -148,25 +156,24 @@ export function ResultWorkspace({ result, versions, onPickVersion, onNew, onReru
 
   return (
     <div className="flex min-h-dvh flex-col bg-background">
-      <header className="flex items-center justify-between gap-3 border-b border-border bg-card px-4 py-3 sm:px-5">
-        <div className="flex min-w-0 items-center gap-3">
-          <button type="button" onClick={onNew} aria-label="Back to start" className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-border">
-            <ArrowLeft className="h-[18px] w-[18px]" aria-hidden="true" />
+      {/* Title bar, as in a Mac document window: back, breadcrumb, actions. */}
+      <header className="flex h-[52px] flex-none items-center justify-between gap-3 px-3 sm:px-4">
+        <div className="flex min-w-0 items-center gap-2">
+          <button type="button" onClick={onNew} aria-label="Back" title="Back (Esc)" className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-muted-foreground hover:bg-secondary hover:text-foreground">
+            <ArrowLeft className="h-4 w-4" aria-hidden="true" />
           </button>
-          <div className="flex min-w-0 flex-col">
-            <span className="truncate text-sm font-semibold">{result.name}</span>
-            <span className="truncate font-mono text-[11px] text-muted-foreground">{info.label} · {result.detail}</span>
-          </div>
+          <span className="truncate text-[13px] font-semibold">{result.name}</span>
+          <span className="hidden truncate text-[12px] text-muted-foreground sm:inline">{info.label} · {result.detail}</span>
         </div>
         <div className="flex items-center gap-2">
-          <button type="button" onClick={copy} aria-label="Copy SVG" className="inline-flex h-11 items-center gap-2 rounded-xl border border-border bg-card px-3 text-sm font-medium sm:px-3.5">
-            <Copy className="h-4 w-4" aria-hidden="true" />
+          <Btn onClick={copy} aria-label="Copy SVG" kbd={`${MOD}⇧C`}>
+            <Copy className="h-3.5 w-3.5" aria-hidden="true" />
             <span className="hidden sm:inline">{copied ? "Copied" : "Copy SVG"}</span>
-          </button>
-          <button type="button" onClick={onNew} className="hidden h-11 items-center gap-2 rounded-xl bg-primary px-3.5 text-sm font-semibold text-primary-foreground sm:inline-flex">
-            <Plus className="h-4 w-4" aria-hidden="true" />
+          </Btn>
+          <Btn variant="primary" onClick={onNew} className="hidden sm:inline-flex" kbd="esc">
+            <Plus className="h-3.5 w-3.5" aria-hidden="true" />
             New logo
-          </button>
+          </Btn>
         </div>
       </header>
 
@@ -370,11 +377,13 @@ export function ResultWorkspace({ result, versions, onPickVersion, onNew, onReru
             <button
               type="button"
               disabled={(format === "png" && (!prepared[key(canvas, size)] || preparing)) || saving}
+              ref={downloadRef}
               onClick={() => save(format !== "png" ? format : pngBack === "white" ? "png-white" : pngBack === "brand" ? "png-brand" : "png", canvas, prepared[key(canvas, size)])}
               className="inline-flex h-[50px] items-center justify-center gap-2.5 rounded-[13px] bg-primary text-[15px] font-semibold text-primary-foreground disabled:opacity-50"
             >
               <Download className="h-[18px] w-[18px]" aria-hidden="true" />
               {format === "png" && preparing ? "Preparing .PNG…" : format === "png" ? "Download .PNG" : format === "ai" ? "Download .Ai" : "Download .SVG"}
+              <Kbd className="bg-white/15 text-white/85">{MOD}S</Kbd>
             </button>
             <p className="text-center text-xs text-muted-foreground">
               {canvas === "board" && <>Centred on a {BOARD.width} × {BOARD.height} board. </>}

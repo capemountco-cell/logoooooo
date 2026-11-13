@@ -11,6 +11,7 @@ import { conceptName, traceColorConcept, traceConcept, type TracedConcept } from
 import { addRecent } from "@/lib/recent";
 import type { LogoResult } from "@/lib/result-model";
 import { cn } from "@/lib/utils";
+import { useShortcuts } from "@/components/app/mac";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -34,6 +35,16 @@ function Index() {
   const [opening, setOpening] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [colorBusy, setColorBusy] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [batchRunning, setBatchRunning] = useState(0);
+  // Sections by keyboard, as in a Mac app: ⌘1 Create, ⌘2 Batch, ⌘3 Import, ⌘, Settings.
+  useShortcuts([
+    { keys: "mod+1", run: () => { setOpened(null); setView("create"); } },
+    { keys: "mod+2", run: () => { setOpened(null); setView("batch"); } },
+    { keys: "mod+3", run: () => { setOpened(null); setView("import"); } },
+    { keys: "mod+,", run: () => setSettingsOpen(true) },
+  ]);
+  const header = <AppHeader view={view} onView={(v) => { setOpened(null); setView(v); }} badges={{ batch: view === "batch" ? 0 : batchRunning }} settingsOpen={settingsOpen} onSettings={setSettingsOpen} />;
 
   /** A passed concept → exact trace → the result workspace (colour first when it relies on colour). */
   async function open(c: ConceptState, brief: LogoBrief, from: View) {
@@ -71,7 +82,7 @@ function Index() {
 
   return (
     <>
-      {view === "import" && <ImportLogo nav={<AppHeader view={view} onView={setView} />} />}
+      {view === "import" && <ImportLogo nav={header} />}
       {opened && view !== "import" && (
         <ResultWorkspace
           result={opened.shown}
@@ -84,18 +95,18 @@ function Index() {
         />
       )}
       {/* Kept mounted while a result is open, so running jobs and their concepts carry on. */}
-      <div className={cn("flex min-h-dvh flex-col bg-dots", (opened || view === "import") && "hidden")}>
-        <AppHeader view={view} onView={setView} />
-        <div className="app-panel mx-2 mt-1 mb-2 flex flex-1 flex-col pt-2 sm:mx-3 sm:mb-3">
+      <div className={cn("flex h-dvh flex-col bg-dots", (opened || view === "import") && "hidden")}>
+        {header}
+        <div className="app-panel mx-2 mt-1 mb-2 flex min-h-0 flex-1 flex-col overflow-hidden text-[13px] leading-[1.45] sm:mx-3 sm:mb-3">
         {opening && (
-          <p role="status" className="mx-auto mb-2 rounded-xl bg-card px-4 py-2 text-sm text-subtle shadow-sm">Tracing your logo into a clean vector…</p>
+          <p role="status" className="flex-none border-b border-border px-6 py-2 text-[13px] text-subtle">Tracing your logo into a clean vector…</p>
         )}
-        {notice && !opened && <p role="alert" className="mx-auto mb-2 px-4 text-sm text-destructive">{notice}</p>}
-        <div className={cn("flex flex-1 flex-col", view !== "create" && "hidden")}>
-          <CreateLogo onOpen={(c, b) => void open(c, b, "create")} />
+        {notice && !opened && <p role="alert" className="flex-none border-b border-border px-6 py-2 text-[13px] text-destructive">{notice}</p>}
+        <div className={cn("flex min-h-0 flex-1 flex-col", view !== "create" && "hidden")}>
+          <CreateLogo active={view === "create" && !opened && !settingsOpen} onOpen={(c, b) => void open(c, b, "create")} />
         </div>
-        <div className={cn("flex flex-1 flex-col", view !== "batch" && "hidden")}>
-          <BriefBatch onOpen={(c, b) => void open(c, b, "batch")} />
+        <div className={cn("flex min-h-0 flex-1 flex-col", view !== "batch" && "hidden")}>
+          <BriefBatch active={view === "batch" && !opened && !settingsOpen} onRunning={setBatchRunning} onOpen={(c, b) => void open(c, b, "batch")} />
         </div>
         </div>
       </div>

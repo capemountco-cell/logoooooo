@@ -2,14 +2,15 @@ import { forwardRef, type ComponentPropsWithoutRef, type ReactNode } from "react
 import { LayoutGrid, Settings, Sparkles, Upload } from "lucide-react";
 import { BrandMark } from "./brand";
 import { SettingsSheet } from "./settings-sheet";
+import { MOD } from "./mac";
 import { cn } from "@/lib/utils";
 
 export type View = "create" | "batch" | "import";
 
-const VIEWS: { id: View; label: string; icon: ReactNode }[] = [
-  { id: "create", label: "Create", icon: <Sparkles className="h-[22px] w-[22px]" strokeWidth={1.6} aria-hidden="true" /> },
-  { id: "batch", label: "Batch", icon: <LayoutGrid className="h-[22px] w-[22px]" strokeWidth={1.6} aria-hidden="true" /> },
-  { id: "import", label: "Import", icon: <Upload className="h-[22px] w-[22px]" strokeWidth={1.6} aria-hidden="true" /> },
+const VIEWS: { id: View; label: string; icon: ReactNode; key: string }[] = [
+  { id: "create", label: "Create", key: "1", icon: <Sparkles className="h-[22px] w-[22px]" strokeWidth={1.6} aria-hidden="true" /> },
+  { id: "batch", label: "Batch", key: "2", icon: <LayoutGrid className="h-[22px] w-[22px]" strokeWidth={1.6} aria-hidden="true" /> },
+  { id: "import", label: "Import", key: "3", icon: <Upload className="h-[22px] w-[22px]" strokeWidth={1.6} aria-hidden="true" /> },
 ];
 
 /** A Mac toolbar item (Camu's .tool): icon over label, a soft fill when current. */
@@ -42,7 +43,7 @@ export const ToolButton = forwardRef<HTMLButtonElement, ComponentPropsWithoutRef
  * then large icon-and-label tools — places on the left, settings on the right. No window buttons:
  * LOGOO runs in the browser, whose own frame surrounds it.
  */
-export function AppHeader({ view, onView, badges }: { view: View; onView: (v: View) => void; badges?: Partial<Record<View, number>> }) {
+export function AppHeader({ view, onView, badges, settingsOpen, onSettings }: { view: View; onView: (v: View) => void; badges?: Partial<Record<View, number>>; settingsOpen?: boolean; onSettings?: (open: boolean) => void }) {
   return (
     <header className="flex flex-none flex-col">
       <div className="flex h-10 items-center justify-center">
@@ -53,10 +54,14 @@ export function AppHeader({ view, onView, badges }: { view: View; onView: (v: Vi
       <nav aria-label="Sections" className="flex items-end justify-between px-2 pb-1 sm:px-3">
         <div className="flex gap-1">
           {VIEWS.map((v) => (
-            <ToolButton key={v.id} current={view === v.id} icon={v.icon} label={v.label} badge={badges?.[v.id]} onClick={() => onView(v.id)} />
+            <ToolButton key={v.id} current={view === v.id} icon={v.icon} label={v.label} badge={badges?.[v.id]} title={`${v.label} (${MOD}${v.key})`} onClick={() => onView(v.id)} />
           ))}
         </div>
-        <SettingsSheet trigger={<ToolButton icon={<Settings className="h-[22px] w-[22px]" strokeWidth={1.6} aria-hidden="true" />} label="Settings" aria-label="Settings" />} />
+        <SettingsSheet
+          {...(settingsOpen !== undefined ? { open: settingsOpen } : {})}
+          {...(onSettings ? { onOpenChange: onSettings } : {})}
+          trigger={<ToolButton icon={<Settings className="h-[22px] w-[22px]" strokeWidth={1.6} aria-hidden="true" />} label="Settings" aria-label="Settings" title={`Settings (${MOD},)`} />}
+        />
       </nav>
     </header>
   );
