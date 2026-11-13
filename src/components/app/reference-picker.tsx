@@ -31,18 +31,18 @@ export function ReferencePicker({ refs, onChange, disabled }: { refs: PreparedRe
     onChange(refs.filter((x) => x.id !== id));
   };
   return (
-    <div className="flex flex-col gap-2">
-      <ul className="flex flex-wrap items-stretch gap-2" aria-label="Reference images">
+    <div className="flex flex-col gap-1.5">
+      <ul className="flex flex-wrap items-center gap-2" aria-label="Reference images">
         {refs.map((r) => (
-          <li key={r.id} className="flex items-center gap-2 rounded-xl border border-border bg-card py-1.5 pr-1.5 pl-1.5">
-            <img src={r.preview} alt="" className="h-9 w-9 rounded-lg border border-border object-cover" />
+          <li key={r.id} className="flex h-7 items-center gap-1.5 rounded-lg border border-input bg-card pr-0.5 pl-0.5">
+            <img src={r.preview} alt="" className="h-6 w-6 rounded-md bg-artboard object-cover" />
             <label className="flex flex-col">
               <span className="sr-only">What should the AI take from this reference?</span>
               <select
                 value={r.role}
                 disabled={disabled}
                 onChange={(e) => setRole(r.id, e.target.value as ReferenceRole)}
-                className="h-9 rounded-lg bg-transparent pr-1 text-[13px] font-medium outline-none"
+                className="h-6 max-w-[150px] rounded-md bg-transparent pr-1 text-[12px] font-medium outline-none"
                 aria-label="Use this reference for"
               >
                 {REFERENCE_ROLES.map((role) => (
@@ -52,8 +52,8 @@ export function ReferencePicker({ refs, onChange, disabled }: { refs: PreparedRe
                 ))}
               </select>
             </label>
-            <button type="button" disabled={disabled} onClick={() => remove(r.id)} aria-label="Remove reference" className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-muted-foreground hover:text-foreground">
-              <X className="h-4 w-4" aria-hidden="true" />
+            <button type="button" disabled={disabled} onClick={() => remove(r.id)} aria-label="Remove reference" className="inline-flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground hover:text-foreground">
+              <X className="h-3.5 w-3.5" aria-hidden="true" />
             </button>
           </li>
         ))}
@@ -62,12 +62,12 @@ export function ReferencePicker({ refs, onChange, disabled }: { refs: PreparedRe
             <label
               {...drop.handlers}
               className={cn(
-                "inline-flex h-[52px] cursor-pointer items-center gap-2 rounded-xl border-[1.5px] border-dashed px-3.5 text-[13px] font-medium text-subtle",
-                drop.dragging ? "border-blue bg-blue/10" : "border-line hover:border-line-strong",
+                "inline-flex h-7 cursor-pointer items-center gap-2 rounded-lg border border-input bg-card px-3 text-[13px] font-medium text-foreground hover:bg-secondary",
+                drop.dragging && "border-primary bg-primary/10",
                 disabled && "pointer-events-none opacity-50",
               )}
             >
-              <ImagePlus className="h-4 w-4" aria-hidden="true" />
+              <ImagePlus className="h-3.5 w-3.5" aria-hidden="true" />
               Reference
               <input
                 type="file"
@@ -82,7 +82,7 @@ export function ReferencePicker({ refs, onChange, disabled }: { refs: PreparedRe
           </li>
         )}
       </ul>
-      {refs.length > 0 && <p className="text-xs text-muted-foreground">Each reference lends only the quality you pick. Nothing else is copied.</p>}
+      
       {error && <p role="alert" className="text-xs text-destructive">{error}</p>}
     </div>
   );

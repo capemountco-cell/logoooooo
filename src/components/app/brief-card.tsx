@@ -14,7 +14,7 @@ function Field({ label, children, wide }: { label: string; children: React.React
   );
 }
 
-const input = "h-11 rounded-xl border border-border bg-field px-3.5 text-[15px] outline-none focus:border-foreground focus:bg-field-focus";
+const input = "h-9 rounded-lg border border-input bg-field px-3 text-[13px] outline-none focus:border-primary focus:bg-field-focus";
 
 /** The cleaned-up brief, every field editable, with the logo type the AI picked (and why). */
 export function BriefCard({
@@ -31,7 +31,7 @@ export function BriefCard({
   const recommended = new Set([brief.logoType, ...brief.alternativeTypes]);
   const needsName = !brief.brandName.trim();
   return (
-    <section aria-label="Your brief" className="flex w-full max-w-[720px] flex-col gap-5 rounded-[24px] border border-border bg-card p-5">
+    <section aria-label="Your brief" className="flex w-full max-w-[720px] flex-col gap-5 rounded-xl border border-border bg-card p-5">
       <div className="flex items-start justify-between gap-3">
         <div>
           <h2 className="text-lg font-semibold tracking-[-0.01em]">Your brief</h2>
