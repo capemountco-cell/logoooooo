@@ -69,7 +69,7 @@ export function BriefComposer({
           }}
           disabled={locked}
           rows={6}
-          placeholder={"Write, paste or upload a brief…\n\nType it however it comes to mind, paste a whole page — a job post, contest listing or email — or drop in a screenshot. Menus, footers and links are cleaned out."}
+          placeholder={"Write, paste or upload a brief…\n\nType it however it comes to mind, paste a whole page — a job post, contest listing or email — or drop in a screenshot. Menus and footers are cleaned out; links to a reference (\"style reference: https://…\") are opened and used for that role."}
           className={cn(
             "max-h-[50vh] min-h-[176px] w-full resize-y rounded-[16px] bg-field px-4 py-3.5 text-base leading-relaxed outline-none placeholder:text-muted-foreground focus:bg-field-focus disabled:opacity-60",
             drop.dragging && "ring-2 ring-blue",

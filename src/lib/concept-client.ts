@@ -12,6 +12,7 @@ import { logoFile } from "@/lib/logo-files";
 import { streamImage } from "@/lib/stream-image";
 import type { AutoReference, Candidate, SearchProvider } from "@/lib/reference-search";
 import { TILE, tileRects } from "@/lib/brief-extract";
+import { linkContext } from "@/lib/link-reference";
 import { aggregateSwatches, buildPalette, logoSwatches, type PaletteColor } from "@/lib/palette";
 
 /** Pixels of an image (data URL or file), converted to sRGB by the canvas, long side ≤ maxSide. */
@@ -136,6 +137,8 @@ export type RefItem = {
   /** Found by the AI (vs uploaded by the user). */
   auto: boolean;
   candidate?: Candidate | undefined;
+  /** The web page this reference was taken from, when it came from a link. */
+  link?: string | undefined;
 };
 
 async function signatureOf(image: string) {
@@ -173,6 +176,57 @@ export async function describeRef(role: ReferenceRole, src: { file?: File; candi
   if (!res.ok) throw await failure(res, "Couldn't read that reference.");
   const { description, image } = (await res.json()) as { description: string; image: string };
   return { id: crypto.randomUUID(), role, description, image, signature: await signatureOf(image), auto: Boolean(src.candidate), candidate: src.candidate };
+}
+
+// ---------- references from links ----------
+
+const loadImg = (src: string) =>
+  new Promise<HTMLImageElement>((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = () => reject(new Error("bad image"));
+    img.src = src;
+  });
+
+/**
+ * A page's images as one reference picture: a single image as it is, or up to four on a 2 × 2
+ * white contact sheet, so the vision model reads the site's overall look. Tiny images are skipped.
+ */
+export async function contactSheet(images: string[]): Promise<File | null> {
+  const loaded = (await Promise.all(images.map((src) => loadImg(src).catch(() => null)))).filter(
+    (img): img is HTMLImageElement => Boolean(img) && Math.min(img!.naturalWidth, img!.naturalHeight) >= 48,
+  ).slice(0, 4);
+  if (!loaded.length) return null;
+  const size = 1024, cols = loaded.length === 1 ? 1 : 2, rows = loaded.length <= 2 ? 1 : 2;
+  const cw = size / cols, ch = loaded.length === 1 ? size : size / 2;
+  const canvas = document.createElement("canvas");
+  canvas.width = size;
+  canvas.height = ch * rows;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return null;
+  ctx.fillStyle = "#fff";
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  loaded.forEach((img, i) => {
+    const pad = loaded.length === 1 ? 0 : 12;
+    const s = Math.min((cw - pad * 2) / img.naturalWidth, (ch - pad * 2) / img.naturalHeight);
+    const w = img.naturalWidth * s, h = img.naturalHeight * s;
+    ctx.drawImage(img, (i % cols) * cw + (cw - w) / 2, Math.floor(i / cols) * ch + (ch - h) / 2, w, h);
+  });
+  const blob = await new Promise<Blob | null>((r) => canvas.toBlob(r, "image/png"));
+  return blob ? new File([blob], "link-reference.png", { type: "image/png" }) : null;
+}
+
+export type LinkResult = { url: string; role: ReferenceRole; context: string; ref: PreparedRef | null };
+
+/** Opens a link from the brief (on the server) and turns it into a reference + a line of context. */
+export async function openLink(url: string, role: ReferenceRole, signal?: AbortSignal): Promise<LinkResult> {
+  const form = new FormData();
+  form.append("url", url);
+  const res = await fetch("/api/link-reference", { method: "POST", body: form, signal: signal ?? null });
+  if (!res.ok) throw await failure(res, "Couldn't open that page.");
+  const page = (await res.json()) as { url: string; title: string; description: string; text: string; images: string[] };
+  const sheet = await contactSheet(page.images ?? []);
+  return { url, role, context: linkContext(url, role, page), ref: sheet ? await prepareRef(sheet, role) : null };
 }
 
 // ---------- briefs from uploads ----------

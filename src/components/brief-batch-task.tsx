@@ -111,6 +111,8 @@ export function BriefBatchTask({
         <p className="line-clamp-3 rounded-xl bg-field p-3 text-[13px] text-subtle">{notes}</p>
       )}
 
+      {job.notice && <p className="text-[12px] text-pending" role="status">{job.notice}</p>}
+
       {(job.error || error) && (
         <p role="alert" className="flex items-center gap-1.5 text-[13px] text-destructive">
           <AlertCircle className="h-4 w-4 shrink-0" aria-hidden="true" />
