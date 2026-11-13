@@ -3,7 +3,7 @@ import { normalizeBrief, REFERENCE_ROLE_IDS, type ReferenceNote } from "@/lib/br
 import { buildConceptPrompt, buildFixPrompt } from "@/lib/concept-prompt";
 import { editImage, generateImage, imageSettings } from "@/lib/image-gateway.server";
 import { grokEdit, grokGenerate } from "@/lib/own-providers.server";
-import { isFile } from "@/lib/openai-text.server";
+import { classifyOpenAIError, isFile, UPSTREAM_MESSAGES } from "@/lib/openai-text.server";
 
 /** Reference notes from the client, kept to known roles and bounded text. */
 function readReferences(raw: string): ReferenceNote[] {
@@ -69,8 +69,12 @@ export const Route = createFileRoute("/api/concept")({
         }
         if (!upstream.ok) {
           const t = await upstream.text().catch(() => "");
-          console.error(`OpenAI image failed [${upstream.status}]: ${t}`);
-          return new Response(upstream.status === 429 ? "The AI is busy right now (rate limit)." : `OpenAI image failed: ${upstream.status}`, { status: upstream.status });
+          const kind = classifyOpenAIError(upstream.status, t);
+          console.error(`OpenAI image failed [${upstream.status} ${kind}]: ${t}`);
+          // Out of credit / bad key: a clear message and a status the client won't retry (402/401).
+          // Rate limits stay 429, which the concept loop retries with backoff.
+          if (kind !== "other") return new Response(UPSTREAM_MESSAGES[kind].message, { status: UPSTREAM_MESSAGES[kind].status });
+          return new Response(`OpenAI image failed: ${upstream.status}`, { status: upstream.status });
         }
         return new Response(upstream.body, {
           status: upstream.status,

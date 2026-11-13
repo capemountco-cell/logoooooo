@@ -3,6 +3,7 @@ import { Route as BriefRoute } from "@/routes/api/brief";
 import { Route as ConceptRoute } from "@/routes/api/concept";
 import { Route as ReviewRoute } from "@/routes/api/review";
 import { normalizeBrief } from "@/lib/brief";
+import { isRetryable } from "@/lib/concept-pipeline";
 
 type Handler = (ctx: { request: Request }) => Promise<Response>;
 const post = (route: unknown) => (route as { options: { server: { handlers: { POST: Handler } } } }).options.server.handlers.POST;
@@ -71,10 +72,42 @@ describe("/api/brief", () => {
     const empty = new FormData();
     empty.append("notes", "");
     expect((await post(BriefRoute)({ request: request("/api/brief", empty) })).status).toBe(400);
-    mockFetch(() => new Response("slow down", { status: 429 }));
+    mockFetch(() => new Response('{"error":{"code":"rate_limit_exceeded"}}', { status: 429, headers: { "retry-after-ms": "1" } }));
     const form = new FormData();
     form.append("notes", "ember coffee");
-    expect((await post(BriefRoute)({ request: request("/api/brief", form) })).status).toBe(429);
+    const res = await post(BriefRoute)({ request: request("/api/brief", form) });
+    expect(res.status).toBe(429);
+    // Retried on the server first (1 try + 3 retries), with an honest message (no false "retrying").
+    expect(calls).toHaveLength(4);
+    expect(await res.text()).toMatch(/rate-limiting this API key/);
+  });
+
+  it("recovers when a rate limit clears on retry", async () => {
+    let n = 0;
+    mockFetch(() => (n++ === 0 ? new Response("{}", { status: 429, headers: { "retry-after-ms": "1" } }) : responses(brief)));
+    const form = new FormData();
+    form.append("notes", "ember coffee");
+    expect((await post(BriefRoute)({ request: request("/api/brief", form) })).status).toBe(200);
+    expect(calls).toHaveLength(2);
+  });
+
+  it("says plainly when the OpenAI account has no credit, and never retries it", async () => {
+    mockFetch(() => new Response('{"error":{"message":"You exceeded your current quota","type":"insufficient_quota","code":"insufficient_quota"}}', { status: 429 }));
+    const form = new FormData();
+    form.append("notes", "ember coffee");
+    const res = await post(BriefRoute)({ request: request("/api/brief", form) });
+    expect(res.status).toBe(402);
+    expect(calls).toHaveLength(1);
+    expect(await res.text()).toMatch(/out of credit.*Billing/);
+  });
+
+  it("names a rejected API key", async () => {
+    mockFetch(() => new Response('{"error":{"code":"invalid_api_key"}}', { status: 401 }));
+    const form = new FormData();
+    form.append("notes", "ember coffee");
+    const res = await post(BriefRoute)({ request: request("/api/brief", form) });
+    expect(res.status).toBe(401);
+    expect(await res.text()).toMatch(/OPENAI_API_KEY/);
   });
 });
 
@@ -97,6 +130,15 @@ describe("/api/concept", () => {
     expect(body.prompt).toContain('the brand name "Ember" exactly once');
     expect(body.prompt).toContain("concept 3)");
     expect(body.stream).toBe(true);
+  });
+
+  it("turns an out-of-credit image error into a clear 402 the concept loop won't retry", async () => {
+    mockFetch(() => new Response('{"error":{"code":"insufficient_quota"}}', { status: 429 }));
+    const res = await post(ConceptRoute)({ request: request("/api/concept", form({ provider: "openai" })) });
+    expect(res.status).toBe(402);
+    const msg = `${res.status} ${await res.text()}`;
+    expect(isRetryable(new Error(msg))).toBe(false);
+    expect(isRetryable(new Error("429 OpenAI is rate-limiting this API key"))).toBe(true);
   });
 
   it("uses Grok text-to-image, and Grok edits for fixes", async () => {
