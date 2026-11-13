@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ExternalLink, ImagePlus, Loader2, RefreshCw, Sparkles, X } from "lucide-react";
+import { ExternalLink, ImagePlus, Link2, Loader2, RefreshCw, Sparkles, X } from "lucide-react";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { REFERENCE_ROLES, type ReferenceRole } from "@/lib/brief";
 import type { RefItem } from "@/lib/concept-client";
@@ -7,6 +7,7 @@ import type { Candidate, SearchProvider } from "@/lib/reference-search";
 import type { RefStatus } from "@/hooks/use-brief-job";
 import { useImageDrop } from "@/hooks/use-image-drop";
 import { cn } from "@/lib/utils";
+import { cleanLink } from "@/lib/link-reference";
 
 const host = (url: string) => {
   try {
@@ -24,7 +25,7 @@ const roleLabel = (r: ReferenceRole) => REFERENCE_ROLES.find((x) => x.id === r)?
  * round; each reference only ever lends its role, as text.
  */
 export function ReferenceReview({
-  open, onOpenChange, refs, candidates, provider, status, onRemove, onRole, onCandidate, onUpload, onFindNew, onGenerate, busy,
+  open, onOpenChange, refs, candidates, provider, status, onRemove, onRole, onCandidate, onUpload, onLink, onFindNew, onGenerate, busy,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -36,6 +37,7 @@ export function ReferenceReview({
   onRole: (id: string, role: ReferenceRole) => Promise<void>;
   onCandidate: (c: Candidate, role: ReferenceRole) => Promise<void>;
   onUpload: (file: File, role: ReferenceRole) => Promise<void>;
+  onLink: (url: string, role: ReferenceRole) => Promise<void>;
   onFindNew: () => Promise<void>;
   onGenerate: () => void;
   busy: boolean;
@@ -43,6 +45,8 @@ export function ReferenceReview({
   const [working, setWorking] = useState<string | null>(null);
   const [error, setError] = useState("");
   const [swapRole, setSwapRole] = useState<ReferenceRole>("style");
+  const [link, setLink] = useState("");
+  const [linkRole, setLinkRole] = useState<ReferenceRole>("style");
   const inUse = new Set(refs.map((r) => r.candidate?.id).filter(Boolean));
   const others = candidates.filter((c) => !inUse.has(c.id)).slice(0, 18);
 
@@ -106,6 +110,12 @@ export function ReferenceReview({
                 <span className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
                   {r.auto ? <Sparkles className="h-3 w-3" aria-hidden="true" /> : <ImagePlus className="h-3 w-3" aria-hidden="true" />}
                   {r.auto ? "Picked by AI" : "Added by you"}
+                  {r.link && (
+                    <a href={r.link} target="_blank" rel="noopener noreferrer nofollow" className="inline-flex items-center gap-0.5 underline-offset-2 hover:text-foreground hover:underline">
+                      · {host(r.link)}
+                      <ExternalLink className="h-3 w-3" aria-hidden="true" />
+                    </a>
+                  )}
                   {r.candidate?.source && (
                     <a href={r.candidate.source} target="_blank" rel="noopener noreferrer nofollow" className="inline-flex items-center gap-0.5 underline-offset-2 hover:text-foreground hover:underline">
                       · {host(r.candidate.source)}
@@ -129,6 +139,39 @@ export function ReferenceReview({
             <input type="file" accept="image/png,image/jpeg,image/webp,image/gif" className="sr-only" aria-label="Upload a reference" disabled={Boolean(working)} onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ""; if (f) void run("upload", () => onUpload(f, swapRole)); }} />
           </label>
         </div>
+
+        <form
+          className="flex flex-col gap-2"
+          aria-label="Add a reference from a link"
+          onSubmit={(e) => {
+            e.preventDefault();
+            const url = cleanLink(link);
+            if (!url) { setError("That doesn't look like a web link."); return; }
+            void run("link", async () => { await onLink(url, linkRole); setLink(""); });
+          }}
+        >
+          <div className="flex gap-2">
+            <input
+              type="url"
+              inputMode="url"
+              value={link}
+              onChange={(e) => setLink(e.target.value)}
+              placeholder="Paste a link — a site, Dribbble shot, image…"
+              aria-label="Reference link"
+              disabled={Boolean(working)}
+              className="h-10 min-w-0 flex-1 rounded-full border border-border bg-field px-3.5 text-[13px] outline-none placeholder:text-muted-foreground focus:bg-field-focus"
+            />
+            <select value={linkRole} onChange={(e) => setLinkRole(e.target.value as ReferenceRole)} aria-label="Use the link for" className="h-10 rounded-full border border-border bg-field px-2.5 text-[12px] outline-none">
+              {REFERENCE_ROLES.map((x) => (
+                <option key={x.id} value={x.id}>{x.label}</option>
+              ))}
+            </select>
+            <button type="submit" disabled={Boolean(working) || !link.trim()} aria-label="Add link as reference" className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-border disabled:opacity-50">
+              {working === "link" ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Link2 className="h-4 w-4" aria-hidden="true" />}
+            </button>
+          </div>
+          <p className="text-[11px] text-muted-foreground">LOGOO opens the page and reads its images for that role only.</p>
+        </form>
 
         {others.length > 0 && (
           <section className="flex flex-col gap-2.5" aria-label="Other search results">

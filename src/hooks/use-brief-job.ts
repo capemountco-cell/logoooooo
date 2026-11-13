@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { LogoBrief, ReferenceNote, ReferenceRole } from "@/lib/brief";
-import { cleanBrief, conceptDeps, describeRef, findAutoRefs, measurePalette, type PreparedRef, type RefItem } from "@/lib/concept-client";
+import { MAX_REFERENCES, type LogoBrief, type ReferenceNote, type ReferenceRole } from "@/lib/brief";
+import { findLinks, LINK_CONTEXT_HEADER } from "@/lib/link-reference";
+import { cleanBrief, conceptDeps, describeRef, findAutoRefs, measurePalette, openLink, type PreparedRef, type RefItem } from "@/lib/concept-client";
 import { buildPalette, paletteToColors } from "@/lib/palette";
 import { checklist, conceptProviders, requiredText, type CheckDef } from "@/lib/concept-prompt";
 import { runConcept, type ConceptState } from "@/lib/concept-pipeline";
@@ -58,6 +59,8 @@ export function useBriefJob(persistKey?: string) {
   const [refStatus, setRefStatus] = useState<RefStatus>("idle");
   const [rounds, setRounds] = useState<Round[]>([]);
   const [error, setError] = useState<string | null>(null);
+  /** Non-blocking news, e.g. a link in the brief that couldn't be opened. */
+  const [notice, setNotice] = useState<string | null>(null);
   const controller = useRef<AbortController | null>(null);
   // Search candidates the user removed (never picked again) and whether auto-pick already ran.
   const removed = useRef<Set<string>>(new Set());
@@ -116,11 +119,28 @@ export function useBriefJob(persistKey?: string) {
     const abort = fresh();
     setPhase("briefing");
     setError(null);
+    setNotice(null);
     try {
-      const out = await cleanBrief(text, uploads, abort.signal);
+      // Links in the notes are opened as references (their images, for the role named beside them)
+      // and their page titles go to the brief model as context. A link that fails never blocks.
+      const links = findLinks(text);
+      const opened = await Promise.all(links.map((l) => openLink(l.url, l.role, abort.signal).then((r) => ({ ok: true as const, r }), () => ({ ok: false as const, url: l.url }))));
       if (abort.signal.aborted) return null;
-      const images = await Promise.all(uploads.map((u) => toDataUrl(u.file).catch(() => u.preview)));
-      const items: RefItem[] = uploads.map((u, i) => ({ id: u.id, role: u.role, description: out.references[i]?.description ?? "", image: images[i]!, signature: u.signature, auto: false })).filter((r) => r.description);
+      const linkRefs = new Map<string, string>();
+      const all = [...uploads];
+      const contexts: string[] = [];
+      for (const o of opened) {
+        if (!o.ok) continue;
+        contexts.push(o.r.context);
+        if (o.r.ref && all.length < MAX_REFERENCES) { all.push(o.r.ref); linkRefs.set(o.r.ref.id, o.r.url); }
+      }
+      const failed = opened.filter((o) => !o.ok).map((o) => (o.ok ? "" : new URL(o.url).hostname.replace(/^www\./, "")));
+      if (failed.length) setNotice(`Couldn't open ${failed.join(", ")}. Paste the page's text or upload a screenshot to use it.`);
+      const notesFor = contexts.length ? `${text}\n\n${LINK_CONTEXT_HEADER}\n${contexts.map((c) => `- ${c}`).join("\n")}` : text;
+      const out = await cleanBrief(notesFor, all, abort.signal);
+      if (abort.signal.aborted) return null;
+      const images = await Promise.all(all.map((u) => toDataUrl(u.file).catch(() => u.preview)));
+      const items: RefItem[] = all.map((u, i) => ({ id: u.id, role: u.role, description: out.references[i]?.description ?? "", image: images[i]!, signature: u.signature, auto: false, link: linkRefs.get(u.id) })).filter((r) => r.description);
       setBrief(out.brief);
       setReferences(out.references);
       setRefs(items);
@@ -231,7 +251,7 @@ export function useBriefJob(persistKey?: string) {
     if (!r || r.role === role) return;
     const file = r.candidate ? undefined : await fetch(r.image).then((x) => x.blob()).then((blob) => new File([blob], "reference.png", { type: blob.type || "image/png" }));
     const next = await describeRef(role, r.candidate ? { candidate: r.candidate } : { file: file! });
-    setRefs((all) => all.map((x) => (x.id === id ? { ...next, id, auto: r.auto } : x)));
+    setRefs((all) => all.map((x) => (x.id === id ? { ...next, id, auto: r.auto, link: r.link } : x)));
   }, []);
 
   /** Uses a search candidate for a role, replacing the reference that held that role. */
@@ -249,6 +269,14 @@ export function useBriefJob(persistKey?: string) {
     setRefs((all) => [...all, { ...next, auto: false }]);
   }, []);
 
+  /** Adds a web page as a reference: its images, read for `role` only. */
+  const addLink = useCallback(async (url: string, role: ReferenceRole) => {
+    const opened = await openLink(url, role);
+    if (!opened.ref) throw new Error("That page has no images LOGOO can read. Upload a screenshot of it instead.");
+    const next = await describeRef(role, { file: opened.ref.file });
+    setRefs((all) => [...all, { ...next, auto: false, link: url }]);
+  }, []);
+
   /** Searches again, skipping everything shown so far, and replaces the AI's picks. */
   const findNewRefs = useCallback(async () => {
     if (!brief) return;
@@ -264,7 +292,7 @@ export function useBriefJob(persistKey?: string) {
   const latest = rounds[0];
   return {
     phase, setPhase, brief, setBrief, references, rounds, error, makeBrief, generate, cancel, ready, restored,
-    refs, candidates, provider, refStatus, removeRef, changeRole, useCandidate, addUpload, findNewRefs,
+    refs, candidates, provider, refStatus, removeRef, changeRole, useCandidate, addUpload, addLink, findNewRefs, notice,
     /** The newest round (what batch cards show). */
     concepts: latest?.concepts ?? [],
     checks: latest?.checks ?? [],

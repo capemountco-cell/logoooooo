@@ -92,6 +92,8 @@ export function CreateLogo({ onOpen }: { onOpen: (c: ConceptState, brief: LogoBr
                 : "No concept passed every check this time. Try more, or adjust the brief."}
           </p>
 
+          {job.notice && <p className="-mt-5 text-[13px] text-pending" role="status">{job.notice}</p>}
+
           {job.rounds.map((round, i) => {
             const n = job.rounds.length - i;
             const ok = round.concepts.filter((c) => c.stage === "passed").length;
@@ -130,6 +132,7 @@ export function CreateLogo({ onOpen }: { onOpen: (c: ConceptState, brief: LogoBr
           onRole={job.changeRole}
           onCandidate={job.useCandidate}
           onUpload={job.addUpload}
+          onLink={job.addLink}
           onFindNew={job.findNewRefs}
           onGenerate={() => void job.generate()}
           busy={running}
