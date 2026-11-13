@@ -86,6 +86,7 @@ function Index() {
       {/* Kept mounted while a result is open, so running jobs and their concepts carry on. */}
       <div className={cn("flex min-h-dvh flex-col bg-dots", (opened || view === "import") && "hidden")}>
         <AppHeader view={view} onView={setView} />
+        <div className="app-panel mx-2 mt-1 mb-2 flex flex-1 flex-col pt-2 sm:mx-3 sm:mb-3">
         {opening && (
           <p role="status" className="mx-auto mb-2 rounded-xl bg-card px-4 py-2 text-sm text-subtle shadow-sm">Tracing your logo into a clean vector…</p>
         )}
@@ -95,6 +96,7 @@ function Index() {
         </div>
         <div className={cn("flex flex-1 flex-col", view !== "batch" && "hidden")}>
           <BriefBatch onOpen={(c, b) => void open(c, b, "batch")} />
+        </div>
         </div>
       </div>
     </>

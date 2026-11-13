@@ -285,6 +285,7 @@ export function ImportLogo({ nav }: { nav: ReactNode }) {
     <div className="flex min-h-dvh flex-col bg-dots">
       {pageDragging && <PageDropOverlay label="Drop your logo to upload" />}
       {nav}
+      <div className="app-panel mx-2 mt-1 mb-2 flex flex-1 flex-col pt-4 sm:mx-3 sm:mb-3">
       <div className="flex items-center justify-end gap-2 px-4 sm:px-7">
         <button
           type="button"
@@ -321,6 +322,7 @@ export function ImportLogo({ nav }: { nav: ReactNode }) {
           onClearRecent={() => setRecent(clearRecent())}
         />
       )}
+      </div>
     </div>
   );
 }

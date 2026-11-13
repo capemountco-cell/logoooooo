@@ -278,7 +278,7 @@ export function ResultWorkspace({ result, versions, onPickVersion, onNew, onReru
               <div className="flex items-center justify-between gap-2">
                 <h2 id="colour-h" className="text-sm font-semibold">Colour</h2>
                 {result.advice && (
-                  <span className={cn("rounded-md px-2 py-1 font-mono text-[11px]", result.advice.recommend === "color" ? "bg-foreground text-primary-foreground" : "bg-muted text-subtle")}>
+                  <span className={cn("rounded-md px-2 py-1 font-mono text-[11px]", result.advice.recommend === "color" ? "bg-accent text-foreground shadow-[inset_0_0_0_1px_rgba(255,255,255,0.08)]" : "bg-muted text-subtle")}>
                     {result.advice.recommend === "color" ? "KEEP COLOUR" : "B&W IS FINE"}
                   </span>
                 )}

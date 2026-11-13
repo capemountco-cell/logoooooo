@@ -64,8 +64,8 @@ export function BriefCard({
               onClick={() => set({ logoType: t.id })}
               title={t.rule}
               className={cn(
-                "inline-flex h-10 items-center gap-1.5 rounded-full border px-3.5 text-[13px] font-medium",
-                brief.logoType === t.id ? "border-foreground bg-foreground text-background" : recommended.has(t.id) ? "border-foreground/40 bg-transparent" : "border-border bg-transparent text-subtle",
+                "inline-flex h-10 items-center gap-1.5 rounded-lg border px-3.5 text-[13px] font-medium",
+                brief.logoType === t.id ? "border-primary bg-primary/15 text-foreground" : recommended.has(t.id) ? "border-foreground/40 bg-transparent" : "border-border bg-transparent text-subtle",
               )}
             >
               {t.label}
@@ -126,7 +126,7 @@ export function BriefCard({
         type="button"
         onClick={onGenerate}
         disabled={needsName && !["pictorial", "abstract"].includes(brief.logoType)}
-        className="inline-flex h-[50px] items-center justify-center gap-2 rounded-full bg-primary text-[15px] font-semibold text-primary-foreground disabled:opacity-40"
+        className="inline-flex h-[50px] items-center justify-center gap-2 rounded-lg bg-primary text-[15px] font-semibold text-primary-foreground disabled:opacity-40"
       >
         <Sparkles className="h-4 w-4" aria-hidden="true" />
         Generate concepts

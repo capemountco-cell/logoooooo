@@ -61,7 +61,7 @@ export function BriefDraft({
       <div className="flex items-center justify-between gap-2 px-1">
         <span className="font-mono text-[11px] tracking-[0.06em] text-muted-foreground uppercase">Brief {index + 1}</span>
         <div className="flex items-center gap-1">
-          <label className={cn("inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-full border border-border px-2.5 text-xs font-medium text-subtle hover:text-foreground", reading && "pointer-events-none opacity-50")}>
+          <label className={cn("inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-lg border border-border px-2.5 text-xs font-medium text-subtle hover:text-foreground", reading && "pointer-events-none opacity-50")}>
             <FileText className="h-3.5 w-3.5" aria-hidden="true" />
             Upload
             <input type="file" accept={BRIEF_FILE_ACCEPT} className="sr-only" aria-label={`Upload a file for brief ${index + 1}`} disabled={reading} onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ""; if (f) void read(f); }} />

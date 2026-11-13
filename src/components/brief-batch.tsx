@@ -94,7 +94,7 @@ export function BriefBatch({ onOpen }: { onOpen: (c: ConceptState, brief: LogoBr
           </div>
           <div className="flex flex-wrap gap-2">
             <label className={room <= 0 ? "pointer-events-none opacity-50" : ""}>
-              <span className="inline-flex h-10 cursor-pointer items-center gap-1.5 rounded-full border border-border px-3.5 text-sm font-medium">
+              <span className="inline-flex h-10 cursor-pointer items-center gap-1.5 rounded-lg border border-border px-3.5 text-sm font-medium">
                 <Files className="h-4 w-4" aria-hidden="true" />
                 Upload briefs
               </span>
@@ -107,7 +107,7 @@ export function BriefBatch({ onOpen }: { onOpen: (c: ConceptState, brief: LogoBr
                 onChange={(e) => { const files = Array.from(e.target.files ?? []).slice(0, Math.max(0, room)); e.target.value = ""; addDrafts(files.map((file) => ({ id: crypto.randomUUID(), notes: "", file }))); }}
               />
             </label>
-            <button type="button" onClick={() => setPasting((v) => !v)} aria-expanded={pasting} className="inline-flex h-10 items-center gap-1.5 rounded-full border border-border px-3.5 text-sm font-medium">
+            <button type="button" onClick={() => setPasting((v) => !v)} aria-expanded={pasting} className="inline-flex h-10 items-center gap-1.5 rounded-lg border border-border px-3.5 text-sm font-medium">
               <ClipboardList className="h-4 w-4" aria-hidden="true" />
               Paste several
             </button>
@@ -125,7 +125,7 @@ export function BriefBatch({ onOpen }: { onOpen: (c: ConceptState, brief: LogoBr
               placeholder={"One brief per paragraph, or numbered.\n\nEmber — cosy modern coffee shop, warm colours\n\nStill Water yoga studio, calm, minimal, a wave"}
               className="min-h-[130px] w-full resize-y rounded-[14px] bg-field px-3.5 py-3 text-[15px] leading-relaxed outline-none placeholder:text-muted-foreground focus:bg-field-focus"
             />
-            <button type="button" onClick={splitPasted} disabled={!pending.length} className="inline-flex h-10 items-center justify-center gap-1.5 self-end rounded-full bg-primary px-4 text-sm font-semibold text-primary-foreground disabled:opacity-40">
+            <button type="button" onClick={splitPasted} disabled={!pending.length} className="inline-flex h-10 items-center justify-center gap-1.5 self-end rounded-lg bg-primary px-4 text-sm font-semibold text-primary-foreground disabled:opacity-40">
               Add {pending.length > 1 ? `${pending.length} briefs` : "brief"}
             </button>
           </div>
@@ -152,9 +152,9 @@ export function BriefBatch({ onOpen }: { onOpen: (c: ConceptState, brief: LogoBr
           )}
         </ul>
 
-        <div className="sticky bottom-3 z-10 flex items-center justify-between gap-3 rounded-full border border-border bg-card/95 py-2 pr-2 pl-5 backdrop-blur">
+        <div className="sticky bottom-3 z-10 flex items-center justify-between gap-3 rounded-xl border border-border bg-card/95 py-2 pr-2 pl-5 backdrop-blur">
           <span className="text-[13px] text-muted-foreground">{filled.length ? `${filled.length} brief${filled.length === 1 ? "" : "s"} ready` : "Add at least one brief"}</span>
-          <button type="button" onClick={generate} disabled={!filled.length} className="inline-flex h-11 items-center gap-2 rounded-full bg-primary px-5 text-[15px] font-semibold text-primary-foreground disabled:opacity-40">
+          <button type="button" onClick={generate} disabled={!filled.length} className="inline-flex h-11 items-center gap-2 rounded-lg bg-primary px-5 text-[15px] font-semibold text-primary-foreground disabled:opacity-40">
             <Sparkles className="h-4 w-4" aria-hidden="true" />
             Generate {filled.length > 1 ? `${filled.length} logos` : "logo"}
           </button>
