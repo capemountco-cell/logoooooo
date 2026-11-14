@@ -202,3 +202,46 @@ describe("/api/concept-plan", () => {
     expect((calls[0]!.body as { prompt: string }).prompt).toContain("CONCEPT 1 — EMBER SPARK: A spark that is also a coffee bean.");
   });
 });
+
+describe("/api/concept with reference pictures", () => {
+  const withRefs = (extra: Record<string, string | File>) => {
+    const f = new FormData();
+    f.append("brief", JSON.stringify(brief));
+    f.append("references", JSON.stringify([{ role: "typography", description: "bold hand-drawn brush lettering" }]));
+    for (const [k, v] of Object.entries(extra)) f.append(k, v);
+    return f;
+  };
+
+  it("shows the image model each reference picture for its role (edit endpoint), like ChatGPT", async () => {
+    mockFetch(() => new Response("event: x\n\n", { headers: { "Content-Type": "text/event-stream" } }));
+    const res = await post(ConceptRoute)({ request: request("/api/concept", withRefs({ provider: "openai", refImage0: png(), refRole0: "typography", refImage1: png(), refRole1: "style" })) });
+    expect(res.status).toBe(200);
+    expect(calls[0]!.url).toBe("https://api.openai.com/v1/images/edits");
+    const sent = calls[0]!.body as FormData;
+    expect(sent.getAll("image[]")).toHaveLength(2);
+    const prompt = String(sent.get("prompt"));
+    expect(prompt).toContain("VISUAL REFERENCES: The 2 images provided are reference pictures");
+    expect(prompt).toContain("Image 1 (TYPOGRAPHY): take ONLY its lettering style");
+    expect(prompt).toContain("Image 2 (STYLE): take ONLY its visual style");
+    expect(prompt).toContain("Never reproduce a reference's symbol, wording, layout or overall design");
+    expect(prompt).toContain('the brand name "Ember" exactly once');
+  });
+
+  it("draws from text alone without pictures, and Grok never gets them", async () => {
+    mockFetch(() => new Response("event: x\n\n", { headers: { "Content-Type": "text/event-stream" } }));
+    await post(ConceptRoute)({ request: request("/api/concept", withRefs({ provider: "openai" })) });
+    expect(calls[0]!.url).toBe("https://api.openai.com/v1/images/generations");
+    expect((calls[0]!.body as { prompt: string }).prompt).not.toContain("VISUAL REFERENCES");
+    mockFetch(() => Response.json({ data: [{ b64_json: "QUJD" }] }));
+    calls = [];
+    await post(ConceptRoute)({ request: request("/api/concept", withRefs({ provider: "grok", refImage0: png(), refRole0: "style" })) });
+    expect(calls[0]!.url).toBe("https://api.x.ai/v1/images/generations");
+  });
+
+  it("refuses unknown roles and non-image files", async () => {
+    mockFetch(() => new Response("{}"));
+    expect((await post(ConceptRoute)({ request: request("/api/concept", withRefs({ provider: "openai", refImage0: png(), refRole0: "everything" })) })).status).toBe(400);
+    const txt = new File(["hi"], "x.txt", { type: "text/plain" });
+    expect((await post(ConceptRoute)({ request: request("/api/concept", withRefs({ provider: "openai", refImage0: txt, refRole0: "style" })) })).status).toBe(400);
+  });
+});

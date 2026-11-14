@@ -218,7 +218,8 @@ export function useBriefJob(persistKey?: string) {
     const tried = roundsRef.current.flatMap((r) => r.plans ?? []).map((p) => `${p.name}: ${p.idea}`).slice(0, 12);
     const plans = await planConcepts(brief_, notes(use), providers.length, tried, abort.signal).catch(() => null);
     if (abort.signal.aborted || !plans) return;
-    const job = { brief: brief_, references: notes(use), signatures: use.map((r) => r.signature), plans };
+    const pictures = loadSettings().refPictures ? use.filter((r) => r.image).map((r) => ({ role: r.role, image: r.image })) : [];
+    const job = { brief: brief_, references: notes(use), signatures: use.map((r) => r.signature), plans, pictures };
     const checks = checklist(brief_, use.length > 0);
     const deps = conceptDeps(job, checks);
     setRounds((all) => all.map((r) => (r.id === id ? { ...r, checks, refs: use, plans } : r)));
