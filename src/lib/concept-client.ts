@@ -137,7 +137,10 @@ export function conceptDeps(input: JobInput, checks: CheckDef[] = checklist(inpu
       form.append("provider", req.provider);
       const plan = input.plans?.[req.index];
       if (plan) form.append("plan", JSON.stringify(plan));
-      if (req.draft && req.issues) {
+      if (req.draft && req.recreate !== undefined) {
+        form.append("image", logoFile(req.draft, "concept.png", "image/png"));
+        form.append("recreate", req.recreate.slice(0, 300));
+      } else if (req.draft && req.issues) {
         form.append("image", logoFile(req.draft, "draft.png", "image/png"));
         form.append("issues", JSON.stringify(req.issues));
       } else if (req.provider === "openai") {
