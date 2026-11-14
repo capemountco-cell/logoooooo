@@ -167,23 +167,37 @@ export function useBriefJob(persistKey?: string) {
   const samplesRef = useRef<string[]>([]);
 
   /** Fills the roles no reference covers yet. Failure never blocks generating. */
+  /**
+   * Fills the roles no reference covers yet from a Brave (or Openverse) search. A failed search is
+   * retried once; if it still fails, the round goes ahead without and the next round tries again
+   * (`picked` stays false until a search has actually run or the user edited the references).
+   */
   const autoPick = async (b: LogoBrief, current: RefItem[], signal: AbortSignal) => {
     const missing = autoRoles(b).filter((r) => !current.some((x) => x.role === r));
-    if (!missing.length) return current;
-    setRefStatus("searching");
-    try {
-      const found = await findAutoRefs(b, { roles: missing, exclude: [...removed.current] }, signal);
-      if (signal.aborted) return current;
-      setCandidates(found.candidates);
-      setProvider(found.provider);
-      samplesRef.current = found.samples;
-      const next = [...current, ...found.refs];
-      setRefStatus(found.refs.length ? "ready" : "none");
-      return next;
-    } catch {
-      if (!signal.aborted) setRefStatus("failed");
+    if (!missing.length) {
+      picked.current = true;
       return current;
     }
+    setRefStatus("searching");
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        const found = await findAutoRefs(b, { roles: missing, exclude: [...removed.current] }, signal);
+        if (signal.aborted) return current;
+        picked.current = true;
+        setNotice((n) => (n?.startsWith("Couldn't search for reference") ? null : n));
+        setCandidates(found.candidates);
+        setProvider(found.provider);
+        samplesRef.current = found.samples;
+        setRefStatus(found.refs.length ? "ready" : "none");
+        return [...current, ...found.refs];
+      } catch {
+        if (signal.aborted) return current;
+        if (attempt === 0) await new Promise((r) => setTimeout(r, 1500));
+      }
+    }
+    setRefStatus("failed");
+    setNotice("Couldn't search for reference logos this time, so this round is drawn without them. LOGOO searches again next round, or open References → Find new references.");
+    return current;
   };
 
   /** A new round: references are picked first (first round only), then four concepts in parallel. */
@@ -198,21 +212,21 @@ export function useBriefJob(persistKey?: string) {
     setPhase("generating");
     setError(null);
     let brief_ = b;
-    if (!picked.current) {
-      picked.current = true;
-      if (loadSettings().autoRefs) {
-        use = await autoPick(b, use, abort.signal);
-        if (abort.signal.aborted) return;
-        setRefs(use);
-      }
-      // No colours in the brief: build a palette from the colours real logos in this space use
-      // (measured from the reference samples), shaped by colour theory. The user's colours always win.
-      if (!b.colors.length) {
-        const palette = samplesRef.current.length ? await measurePalette(samplesRef.current, b).catch(() => buildPalette([], b)) : buildPalette([], b);
-        if (abort.signal.aborted) return;
-        brief_ = { ...b, colors: paletteToColors(palette) };
-        setBrief(brief_);
-      }
+    // References are grabbed automatically (Brave Image Search, Openverse as fallback) until a
+    // search has run for this brief — so a failed search is tried again next round — unless the
+    // user turned it off or edited the references themselves.
+    if (!picked.current && loadSettings().autoRefs) {
+      use = await autoPick(b, use, abort.signal);
+      if (abort.signal.aborted) return;
+      setRefs(use);
+    }
+    // No colours in the brief: build a palette from the colours real logos in this space use
+    // (measured from the reference samples), shaped by colour theory. The user's colours always win.
+    if (!b.colors.length) {
+      const palette = samplesRef.current.length ? await measurePalette(samplesRef.current, b).catch(() => buildPalette([], b)) : buildPalette([], b);
+      if (abort.signal.aborted) return;
+      brief_ = { ...b, colors: paletteToColors(palette) };
+      setBrief(brief_);
     }
     // Plan the round: a different idea per concept, avoiding ideas earlier rounds already tried.
     const tried = roundsRef.current.flatMap((r) => r.plans ?? []).map((p) => `${p.name}: ${p.idea}`).slice(0, 12);
@@ -248,6 +262,7 @@ export function useBriefJob(persistKey?: string) {
   // ---------- reference review (applies to the next round) ----------
 
   const removeRef = useCallback((id: string) => {
+    picked.current = true;
     const r = refsRef.current.find((x) => x.id === id);
     if (r?.candidate) removed.current.add(r.candidate.id);
     setRefs((all) => all.filter((x) => x.id !== id));
@@ -264,6 +279,7 @@ export function useBriefJob(persistKey?: string) {
 
   /** Uses a search candidate for a role, replacing the reference that held that role. */
   const useCandidate = useCallback(async (candidate: Candidate, role: ReferenceRole) => {
+    picked.current = true;
     const next = await describeRef(role, { candidate });
     setRefs((all) => {
       const old = all.find((x) => x.role === role);

@@ -94,6 +94,8 @@ export function restoreSnapshot(raw: unknown): JobSnapshot | null {
     candidates: s.candidates ?? [],
     provider: s.provider ?? null,
     rounds,
-    picked: Boolean(s.picked) || rounds.length > 0,
+    // Only a search that really ran (or the user editing references) counts: a restored brief
+    // whose search failed or was cut off searches again on its next round.
+    picked: Boolean(s.picked),
   };
 }
