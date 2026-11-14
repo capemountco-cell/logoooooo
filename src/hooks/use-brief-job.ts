@@ -3,9 +3,12 @@ import { MAX_REFERENCES, type LogoBrief, type ReferenceNote, type ReferenceRole 
 import { findLinks, LINK_CONTEXT_HEADER } from "@/lib/link-reference";
 import { cleanBrief, conceptDeps, describeRef, findAutoRefs, measurePalette, openLink, planConcepts, type PreparedRef, type RefItem } from "@/lib/concept-client";
 import { buildPalette, paletteToColors } from "@/lib/palette";
-import { checklist, conceptProviders, requiredText, type CheckDef } from "@/lib/concept-prompt";
+import { checklist, conceptProviders, requiredText, type CheckDef, type Provider } from "@/lib/concept-prompt";
+
+/** Concepts one round can hold (the server accepts concept indexes 0–11). */
+export const MAX_CONCEPTS = 12;
 import { runConcept, type ConceptState } from "@/lib/concept-pipeline";
-import type { ConceptPlan } from "@/lib/concept-plan";
+import { fallbackPlans, type ConceptPlan } from "@/lib/concept-plan";
 import type { Candidate, SearchProvider } from "@/lib/reference-search";
 import { loadSettings } from "@/components/app/settings-sheet";
 import { loadSaved, restoreSnapshot, saveSoon, type JobSnapshot } from "@/lib/persist";
@@ -61,6 +64,8 @@ export function useBriefJob(persistKey?: string) {
   const [rounds, setRounds] = useState<Round[]>([]);
   const roundsRef = useRef<Round[]>([]);
   roundsRef.current = rounds;
+  const briefRef = useRef<LogoBrief | null>(null);
+  briefRef.current = brief;
   const [error, setError] = useState<string | null>(null);
   /** Non-blocking news, e.g. a link in the brief that couldn't be opened. */
   const [notice, setNotice] = useState<string | null>(null);
@@ -109,8 +114,18 @@ export function useBriefJob(persistKey?: string) {
   const stopUnfinished = () =>
     setRounds((all) => all.map((r) => ({ ...r, concepts: r.concepts.map((c) => (settled(c) ? c : { ...c, stage: "failed", note: "Stopped" })) })));
 
+  /** Single-concept work (redraw, recreate, add concept), each with its own abort controller. */
+  const extras = useRef(new Map<string, AbortController>());
+  const [extraRunning, setExtraRunning] = useState(0);
+  const abortExtras = () => {
+    extras.current.forEach((c) => c.abort());
+    extras.current.clear();
+    setExtraRunning(0);
+  };
+
   const fresh = () => {
-    if (controller.current) stopUnfinished();
+    if (controller.current || extras.current.size) stopUnfinished();
+    abortExtras();
     controller.current?.abort();
     const abort = new AbortController();
     controller.current = abort;
@@ -252,11 +267,83 @@ export function useBriefJob(persistKey?: string) {
   }, [brief]);
 
   const cancel = useCallback(() => {
-    if (controller.current) stopUnfinished();
+    if (controller.current || extras.current.size) stopUnfinished();
+    abortExtras();
     controller.current?.abort();
     controller.current = null;
     setPhase((p) => (p === "briefing" ? "idle" : p === "generating" ? "done" : p));
     setRefStatus((s) => (s === "searching" ? "idle" : s));
+  }, []);
+
+  // ---------- one concept at a time: redraw, recreate, add ----------
+
+  /** Runs one concept of a round with that round's brief, references, plans and checklist. */
+  const runOne = async (roundId: string, index: number, provider: Provider, seed?: { image: string; change: string }) => {
+    const round = roundsRef.current.find((r) => r.id === roundId);
+    const b = briefRef.current;
+    if (!round || !b || !round.checks.length) return;
+    const key = `${roundId}:${index}`;
+    extras.current.get(key)?.abort();
+    const abort = new AbortController();
+    extras.current.set(key, abort);
+    setExtraRunning((n) => n + 1);
+    const pictures = loadSettings().refPictures ? round.refs.filter((r) => r.image).map((r) => ({ role: r.role, image: r.image })) : [];
+    const deps = conceptDeps({ brief: b, references: notes(round.refs), signatures: round.refs.map((r) => r.signature), plans: round.plans ?? [], pictures }, round.checks);
+    try {
+      await runConcept({ provider, index, checks: round.checks, ...(seed ? { seed } : {}) }, deps, abort.signal, (s) => {
+        if (abort.signal.aborted) return;
+        setRounds((all) => all.map((r) => (r.id === roundId ? { ...r, concepts: r.concepts.map((c) => (c.index === index ? s : c)) } : r)));
+      });
+    } catch {
+      /* aborted */
+    } finally {
+      if (extras.current.get(key) === abort) extras.current.delete(key);
+      setExtraRunning((n) => Math.max(0, n - 1));
+    }
+  };
+
+  /** Adds a queued concept to a round (with its plan) and returns its index, or null when full. */
+  const appendConcept = (roundId: string, plan: ConceptPlan, provider: Provider = "openai") => {
+    const round = roundsRef.current.find((r) => r.id === roundId);
+    if (!round || round.concepts.length >= MAX_CONCEPTS) return null;
+    const index = Math.max(-1, ...round.concepts.map((c) => c.index)) + 1;
+    const plans = [...(round.plans ?? [])];
+    plans[index] = plan;
+    const next = { ...round, plans, concepts: [...round.concepts, ...queued([provider]).map((c) => ({ ...c, index }))] };
+    roundsRef.current = roundsRef.current.map((r) => (r.id === roundId ? next : r));
+    setRounds((all) => all.map((r) => (r.id === roundId ? next : r)));
+    return index;
+  };
+
+  /** Restart: draws this concept again from scratch, from the same planned idea. */
+  const redraw = useCallback((roundId: string, index: number) => {
+    const c = roundsRef.current.find((r) => r.id === roundId)?.concepts.find((x) => x.index === index);
+    if (!c) return;
+    setRounds((all) => all.map((r) => (r.id === roundId ? { ...r, concepts: r.concepts.map((x) => (x.index === index ? queued([c.provider]).map((q) => ({ ...q, index }))[0]! : x)) } : r)));
+    void runOne(roundId, index, c.provider);
+  }, []);
+
+  /** Recreate: a new concept next to this one, built from its image — with a change, or a fresh refined take. */
+  const recreate = useCallback((roundId: string, index: number, change = "") => {
+    const round = roundsRef.current.find((r) => r.id === roundId);
+    const c = round?.concepts.find((x) => x.index === index);
+    if (!round || !c?.image) return;
+    const base = round.plans?.[index];
+    const plan: ConceptPlan = { ...(base ?? { idea: "", symbol: "", lettering: "", color: "", layout: "" }), name: `${(base?.name || "Concept").slice(0, 30)} · new version`, idea: change.trim() ? `Recreated with: ${change.trim()}` : `A fresh version of ${base?.name || "this concept"}.` };
+    const at = appendConcept(roundId, plan, c.provider);
+    if (at !== null) void runOne(roundId, at, c.provider, { image: c.image, change: change.trim() });
+  }, []);
+
+  /** Add a new logo: one more concept in the newest round, with a fresh idea no concept tried yet. */
+  const addConcept = useCallback(async () => {
+    const round = roundsRef.current[0];
+    const b = briefRef.current;
+    if (!round || !b || !round.checks.length) return;
+    const tried = roundsRef.current.flatMap((r) => r.plans ?? []).filter(Boolean).map((p) => `${p.name}: ${p.idea}`).slice(0, 12);
+    const [plan] = await planConcepts(b, notes(round.refs), 1, tried).catch(() => fallbackPlans(b, 1));
+    if (!plan) return;
+    const at = appendConcept(round.id, plan);
+    if (at !== null) void runOne(round.id, at, "openai");
   }, []);
 
   // ---------- reference review (applies to the next round) ----------
@@ -317,6 +404,7 @@ export function useBriefJob(persistKey?: string) {
   return {
     phase, setPhase, brief, setBrief, references, rounds, error, makeBrief, generate, cancel, ready, restored,
     refs, candidates, provider, refStatus, removeRef, changeRole, useCandidate, addUpload, addLink, findNewRefs, notice,
+    redraw, recreate, addConcept, extraRunning,
     /** The newest round (what batch cards show). */
     concepts: latest?.concepts ?? [],
     checks: latest?.checks ?? [],

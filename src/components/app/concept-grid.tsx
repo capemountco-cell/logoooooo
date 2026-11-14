@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { whiteToArtboard } from "@/lib/artboard";
-import { Eye, Loader2, X } from "lucide-react";
+import { CopyPlus, Eye, Loader2, RotateCcw, X } from "lucide-react";
 import type { CheckDef } from "@/lib/concept-prompt";
 import type { ConceptState } from "@/lib/concept-pipeline";
 import type { ConceptPlan } from "@/lib/concept-plan";
@@ -222,7 +222,7 @@ export function briefSwatches(colors: string[]) {
 
 /** The side panel for the selected concept: its checks, the palette, and the export action. */
 export function ConceptDetail({
-  concept, checks, label, colors, revealed, onOpen, opening, plan,
+  concept, checks, label, colors, revealed, onOpen, opening, plan, onRedraw, onRecreate,
 }: {
   concept: ConceptState | null;
   checks: CheckDef[];
@@ -232,11 +232,17 @@ export function ConceptDetail({
   onOpen: () => void;
   opening?: boolean;
   plan?: ConceptPlan | undefined;
+  /** Restart: draw this concept again from its idea. */
+  onRedraw?: (() => void) | undefined;
+  /** A new version built from this concept, with an optional change. */
+  onRecreate?: ((change: string) => void) | undefined;
 }) {
+  const [change, setChange] = useState("");
   if (!concept) {
     return <p className="px-1 py-2 text-[13px] text-muted-foreground">Select a concept to see its checks.</p>;
   }
   const passedCount = concept.results.filter((r) => r.pass).length;
+  const working = concept.stage !== "passed" && concept.stage !== "failed";
   const usable = concept.stage === "passed" || (concept.stage === "failed" && revealed && Boolean(concept.image));
   const swatches = briefSwatches(colors);
   return (
@@ -261,6 +267,40 @@ export function ConceptDetail({
             {swatches.map((s) => <span key={s.hex} className="h-7 flex-1 rounded-md shadow-[inset_0_0_0_1px_rgba(255,255,255,0.08)]" style={{ background: s.hex }} title={`${s.name} ${s.hex}`} />)}
           </div>
           <p className="px-4 pt-2 pb-3 text-[12px] text-muted-foreground">{swatches.map((s) => `${s.name} ${s.hex}`).join(" · ")}</p>
+        </section>
+      )}
+      {(onRedraw || onRecreate) && (
+        <section className="flex flex-col gap-2 rounded-xl border border-border bg-card p-3" aria-label="Change this concept">
+          <form
+            className="flex gap-2"
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (!onRecreate || !concept.image) return;
+              onRecreate(change);
+              setChange("");
+            }}
+          >
+            <label className="min-w-0 flex-1">
+              <span className="sr-only">Change something in a new version</span>
+              <input
+                value={change}
+                onChange={(e) => setChange(e.target.value)}
+                disabled={!concept.image}
+                placeholder="Change something… e.g. bolder lettering"
+                className="h-8 w-full rounded-lg border border-input bg-field px-2.5 text-[13px] outline-none placeholder:text-muted-foreground focus:border-primary disabled:opacity-50"
+              />
+            </label>
+          </form>
+          <div className="grid grid-cols-2 gap-2">
+            <button type="button" disabled={!onRedraw || working} onClick={onRedraw} title="Draw this concept again from scratch, from the same idea" className="inline-flex h-8 items-center justify-center gap-1.5 rounded-lg border border-input bg-card text-[13px] font-medium hover:bg-secondary disabled:opacity-50">
+              <RotateCcw className="h-3.5 w-3.5" aria-hidden="true" />
+              Redraw
+            </button>
+            <button type="button" disabled={!onRecreate || !concept.image || working} onClick={() => { onRecreate?.(change); setChange(""); }} title="A new version next to this one, built from it (with your change, if any)" className="inline-flex h-8 items-center justify-center gap-1.5 rounded-lg border border-input bg-card text-[13px] font-medium hover:bg-secondary disabled:opacity-50">
+              <CopyPlus className="h-3.5 w-3.5" aria-hidden="true" />
+              {change.trim() ? "Apply change" : "New version"}
+            </button>
+          </div>
         </section>
       )}
       <span className="flex-1" />

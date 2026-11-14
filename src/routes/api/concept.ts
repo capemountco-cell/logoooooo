@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { normalizeBrief, REFERENCE_ROLE_IDS, type ReferenceNote, type ReferenceRole } from "@/lib/brief";
-import { buildConceptPrompt, buildFixPrompt } from "@/lib/concept-prompt";
+import { buildConceptPrompt, buildFixPrompt, buildRecreatePrompt } from "@/lib/concept-prompt";
 import { normalizePlan } from "@/lib/concept-plan";
 import { editImage, generateImage, imageSettings } from "@/lib/image-gateway.server";
 import { grokEdit, grokGenerate } from "@/lib/own-providers.server";
@@ -38,7 +38,7 @@ export const Route = createFileRoute("/api/concept")({
         }
         if (!brief.summary && !brief.brandName) return new Response("The brief is empty", { status: 400 });
         const references = readReferences(String(form.get("references") ?? "[]"));
-        const index = Math.max(0, Math.min(3, Number(form.get("index") ?? 0) || 0));
+        const index = Math.max(0, Math.min(11, Number(form.get("index") ?? 0) || 0));
         const draft = form.get("image");
         let issues: string[] = [];
         try {
@@ -47,8 +47,10 @@ export const Route = createFileRoute("/api/concept")({
         } catch {
           return new Response("Invalid issues", { status: 400 });
         }
+        const recreate = form.get("recreate");
+        const recreating = isFile(draft) && typeof recreate === "string";
         const fixing = isFile(draft);
-        if (fixing && !issues.length) return new Response("Nothing to fix", { status: 400 });
+        if (fixing && !recreating && !issues.length) return new Response("Nothing to fix", { status: 400 });
         // The planned idea for this concept: structured, bounded fields (never a raw prompt).
         let plan = null;
         try {
@@ -67,7 +69,7 @@ export const Route = createFileRoute("/api/concept")({
           if (file.size > 4_000_000 || !/^image\/(png|jpeg|webp)$/.test(file.type)) return new Response("Reference pictures must be PNG, JPG or WebP under 4 MB", { status: 400 });
           pictures.push({ file, role: role as ReferenceRole });
         }
-        const prompt = fixing ? buildFixPrompt(brief, issues) : buildConceptPrompt(brief, references, index, plan, pictures.map((p) => p.role));
+        const prompt = recreating ? buildRecreatePrompt(brief, recreate) : fixing ? buildFixPrompt(brief, issues) : buildConceptPrompt(brief, references, index, plan, pictures.map((p) => p.role));
         const streaming = form.get("stream") !== "false";
 
         if (provider === "grok") return fixing ? grokEdit(prompt, [draft], request.signal) : grokGenerate(prompt, request.signal);

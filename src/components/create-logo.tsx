@@ -6,7 +6,7 @@ import { BriefCard } from "@/components/app/brief-card";
 import { ConceptDetail, ConceptTile } from "@/components/app/concept-grid";
 import { ReferenceReview } from "@/components/app/reference-review";
 import { Btn, Dot, MOD, PanelHeader, Pill, StatusBar, useShortcuts } from "@/components/app/mac";
-import { useBriefJob } from "@/hooks/use-brief-job";
+import { MAX_CONCEPTS, useBriefJob } from "@/hooks/use-brief-job";
 import type { PreparedRef } from "@/lib/concept-client";
 import type { ConceptState } from "@/lib/concept-pipeline";
 import { logoType, type LogoBrief } from "@/lib/brief";
@@ -82,6 +82,7 @@ export function CreateLogo({ onOpen, active = true }: { onOpen: (c: ConceptState
           { keys: "arrowright", run: () => move(1) },
           { keys: "arrowleft", run: () => move(-1) },
           { keys: "e", run: () => { job.cancel(); job.setPhase("brief"); } },
+          { keys: "a", run: () => void job.addConcept() },
           { keys: "n", run: () => { job.cancel(); job.setPhase("idle"); } },
           { keys: "r", run: () => setReviewing(true) },
           { keys: "escape", run: () => { if (running) job.cancel(); } },
@@ -96,6 +97,7 @@ export function CreateLogo({ onOpen, active = true }: { onOpen: (c: ConceptState
       running && job.refStatus === "searching" ? "Finding reference logos for style, concept and lettering…"
         : running && current && !current.plans ? "Planning a different idea for each concept…"
         : running ? `Drawing round ${job.rounds.length} · ${settledNow} of ${current?.concepts.length ?? roundSize()} checked`
+          : job.extraRunning ? `Drawing ${job.extraRunning} concept${job.extraRunning === 1 ? "" : "s"}…`
           : passed ? `${passed} concept${passed === 1 ? "" : "s"} passed every check`
             : "No concept passed every check — try more, or adjust the brief";
     return (
@@ -112,6 +114,10 @@ export function CreateLogo({ onOpen, active = true }: { onOpen: (c: ConceptState
           <Btn onClick={() => setReviewing(true)} kbd="R" title="Review references (R)">
             <Images className="h-3.5 w-3.5" aria-hidden="true" />
             References{job.refs.length ? ` (${job.refs.length})` : ""}
+          </Btn>
+          <Btn onClick={() => void job.addConcept()} disabled={!current?.checks.length || (current?.concepts.length ?? 0) >= MAX_CONCEPTS} kbd="A" title="Add one more concept with a new idea (A)">
+            <Plus className="h-3.5 w-3.5" aria-hidden="true" />
+            Add concept
           </Btn>
           <Btn onClick={() => { job.cancel(); job.setPhase("brief"); }} kbd="E" title="Edit brief (E)">
             <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
@@ -190,6 +196,8 @@ export function CreateLogo({ onOpen, active = true }: { onOpen: (c: ConceptState
               colors={b.colors}
               revealed={selected ? revealed.has(key(selected.sel)) : false}
               plan={selectedRound?.plans?.[selected?.concept.index ?? -1]}
+              onRedraw={selected ? () => job.redraw(selected.sel.round, selected.sel.index) : undefined}
+              onRecreate={selected ? (change) => job.recreate(selected.sel.round, selected.sel.index, change) : undefined}
               onOpen={openSelected}
             />
           </aside>

@@ -245,3 +245,33 @@ describe("/api/concept with reference pictures", () => {
     expect((await post(ConceptRoute)({ request: request("/api/concept", withRefs({ provider: "openai", refImage0: txt, refRole0: "style" })) })).status).toBe(400);
   });
 });
+
+describe("/api/concept recreate", () => {
+  it("makes a new version from the concept image with the user's change", async () => {
+    mockFetch(() => new Response("event: x\n\n", { headers: { "Content-Type": "text/event-stream" } }));
+    const f = new FormData();
+    f.append("brief", JSON.stringify(brief));
+    f.append("references", "[]");
+    f.append("provider", "openai");
+    f.append("image", png());
+    f.append("recreate", "make the flame bolder");
+    const res = await post(ConceptRoute)({ request: request("/api/concept", f) });
+    expect(res.status).toBe(200);
+    expect(calls[0]!.url).toBe("https://api.openai.com/v1/images/edits");
+    const prompt = String((calls[0]!.body as FormData).get("prompt"));
+    expect(prompt).toContain('Create a new version of it that applies this change: "make the flame bolder"');
+    expect(prompt).toContain('the brand name "Ember" exactly once');
+  });
+
+  it("without a change, asks for a fresh, better-crafted take on the same idea", async () => {
+    mockFetch(() => new Response("event: x\n\n", { headers: { "Content-Type": "text/event-stream" } }));
+    const f = new FormData();
+    f.append("brief", JSON.stringify(brief));
+    f.append("references", "[]");
+    f.append("provider", "openai");
+    f.append("image", png());
+    f.append("recreate", "");
+    await post(ConceptRoute)({ request: request("/api/concept", f) });
+    expect(String((calls[0]!.body as FormData).get("prompt"))).toContain("Create a fresh new version of the same idea");
+  });
+});

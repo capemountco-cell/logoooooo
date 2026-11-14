@@ -97,3 +97,14 @@ describe("concept hand-off loop", () => {
     expect(isRetryable(new Error("Failed to fetch"))).toBe(true);
   });
 });
+
+describe("recreate a concept", () => {
+  it("draws the new version from the concept's image with the change, and keeps that seed on a fresh redraw", async () => {
+    const h = harness({ auto: () => [ok("background")], review: (src) => [src === "img4" ? ok("spelling") : bad("spelling", "Fix the J")] });
+    const s = await runConcept({ provider: "openai", index: 3, checks, seed: { image: "liked.png", change: "bolder lettering" } }, h.deps, new AbortController().signal, () => {});
+    expect(h.draws[0]).toEqual({ provider: "openai", index: 3, draft: "liked.png", recreate: "bolder lettering" });
+    // 1 drawing + 2 fixes, then a fresh start that recreates from the same concept again.
+    expect(h.draws[3]).toEqual({ provider: "openai", index: 3, draft: "liked.png", recreate: "bolder lettering" });
+    expect(s.stage).toBe("passed");
+  });
+});

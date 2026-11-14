@@ -154,6 +154,18 @@ export function buildConceptPrompt(brief: LogoBrief, references: ReferenceNote[]
     .join("\n\n");
 }
 
+/**
+ * A new version of a concept the user picked: image 1 is the concept. With a change ("make the
+ * chicken bolder") it applies exactly that; without one it draws a fresh, better-crafted take on
+ * the same idea. Exact text, craft and output rules still hold.
+ */
+export function buildRecreatePrompt(brief: LogoBrief, change: string) {
+  const ask = change.trim()
+    ? `Image 1 is a logo concept the client likes. Create a new version of it that applies this change: ${JSON.stringify(change.trim().slice(0, 300))}. Keep everything the change doesn't touch — the idea, symbol, layout, colours and lettering style.`
+    : "Image 1 is a logo concept the client likes. Create a fresh new version of the same idea: keep its concept, symbol and overall direction, but redraw it from scratch with better proportions, spacing, balance and craft — a recognisably related but new drawing, not a copy.";
+  return [ask, `LOGO TYPE — ${logoType(brief.logoType).label.toUpperCase()}: ${logoType(brief.logoType).rule}`, paletteLine(brief.colors), ...textRules(brief), DESIGN_RULES, OUTPUT_RULES].join("\n\n");
+}
+
 /** A local correction of a concept that failed review: fix the listed issues, change nothing else. */
 export function buildFixPrompt(brief: LogoBrief, issues: string[]) {
   return [

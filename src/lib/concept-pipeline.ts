@@ -19,7 +19,11 @@ export type ConceptState = {
   note: string;
 };
 
-export type DrawRequest = { provider: Provider; index: number; draft?: string; issues?: string[] };
+/**
+ * `draft` + `issues`: fix those issues in the draft. `draft` + `recreate`: a new version of an
+ * existing concept (the change asked for, or "" for a fresh, more refined take on the same idea).
+ */
+export type DrawRequest = { provider: Provider; index: number; draft?: string; issues?: string[]; recreate?: string };
 
 export type ConceptDeps = {
   draw: (req: DrawRequest, onFrame: (src: string) => void, signal: AbortSignal) => Promise<string>;
@@ -52,7 +56,7 @@ function ordered(checks: CheckDef[], results: CheckResult[]) {
 }
 
 export async function runConcept(
-  start: { provider: Provider; index: number; checks: CheckDef[] },
+  start: { provider: Provider; index: number; checks: CheckDef[]; /** Recreate from this concept image (with an optional change) instead of drawing from the plan. */ seed?: { image: string; change: string } },
   deps: ConceptDeps,
   signal: AbortSignal,
   onUpdate: (s: ConceptState) => void,
@@ -88,7 +92,7 @@ export async function runConcept(
     for (let redraw = 0; redraw <= BUDGET.redraws; redraw++) {
       const stage: ConceptStage = redraw ? "redrawing" : "drawing";
       set({ stage, redraws: redraw, results: [], note: "" });
-      let src = await draw({ provider: start.provider, index: start.index }, stage);
+      let src = await draw(start.seed ? { provider: start.provider, index: start.index, draft: start.seed.image, recreate: start.seed.change } : { provider: start.provider, index: start.index }, stage);
       for (let fix = 0; ; fix++) {
         signal.throwIfAborted();
         set({ stage: "checking", image: src });
