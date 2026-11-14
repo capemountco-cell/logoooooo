@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { normalizeBrief, REFERENCE_ROLE_IDS, type ReferenceNote } from "@/lib/brief";
 import { buildConceptPrompt, buildFixPrompt } from "@/lib/concept-prompt";
+import { normalizePlan } from "@/lib/concept-plan";
 import { editImage, generateImage, imageSettings } from "@/lib/image-gateway.server";
 import { grokEdit, grokGenerate } from "@/lib/own-providers.server";
 import { classifyOpenAIError, isFile, UPSTREAM_MESSAGES } from "@/lib/openai-text.server";
@@ -48,7 +49,14 @@ export const Route = createFileRoute("/api/concept")({
         }
         const fixing = isFile(draft);
         if (fixing && !issues.length) return new Response("Nothing to fix", { status: 400 });
-        const prompt = fixing ? buildFixPrompt(brief, issues) : buildConceptPrompt(brief, references, index);
+        // The planned idea for this concept: structured, bounded fields (never a raw prompt).
+        let plan = null;
+        try {
+          plan = normalizePlan(JSON.parse(String(form.get("plan") ?? "null")));
+        } catch {
+          return new Response("Invalid plan", { status: 400 });
+        }
+        const prompt = fixing ? buildFixPrompt(brief, issues) : buildConceptPrompt(brief, references, index, plan);
         const streaming = form.get("stream") !== "false";
 
         if (provider === "grok") return fixing ? grokEdit(prompt, [draft], request.signal) : grokGenerate(prompt, request.signal);

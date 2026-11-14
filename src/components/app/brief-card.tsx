@@ -82,7 +82,7 @@ export function BriefCard({
 
       <div className="grid gap-4 sm:grid-cols-2">
         <Field label="What it should say about the brand" wide>
-          <textarea value={brief.summary} onChange={(e) => set({ summary: e.target.value })} rows={2} className="resize-none rounded-xl border border-border bg-field px-3.5 py-2.5 text-[15px] outline-none focus:border-foreground focus:bg-field-focus" />
+          <textarea value={brief.summary} onChange={(e) => set({ summary: e.target.value })} rows={2} className="resize-none rounded-lg border border-input bg-field px-3 py-2 text-[13px] outline-none focus:border-primary focus:bg-field-focus" />
         </Field>
         <Field label="Personality">
           <input value={csv(brief.personality)} onChange={(e) => set({ personality: fromCsv(e.target.value) })} placeholder="e.g. warm, modern" className={input} />
@@ -101,6 +101,9 @@ export function BriefCard({
         </Field>
         <Field label="Avoid">
           <input value={csv(brief.avoid)} onChange={(e) => set({ avoid: fromCsv(e.target.value) })} placeholder="Nothing specific" className={input} />
+        </Field>
+        <Field label="Your own idea (one concept refines it; the others explore new ideas)" wide>
+          <input value={brief.direction} onChange={(e) => set({ direction: e.target.value })} placeholder="None — every concept is a new idea" className={input} />
         </Field>
       </div>
 

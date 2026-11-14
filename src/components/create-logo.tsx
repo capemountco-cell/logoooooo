@@ -94,6 +94,7 @@ export function CreateLogo({ onOpen, active = true }: { onOpen: (c: ConceptState
     const b = job.brief;
     const statusText =
       running && job.refStatus === "searching" ? "Finding reference logos for style, concept and lettering…"
+        : running && current && !current.plans ? "Planning a different idea for each concept…"
         : running ? `Drawing round ${job.rounds.length} · ${settledNow} of ${current?.concepts.length ?? roundSize()} checked`
           : passed ? `${passed} concept${passed === 1 ? "" : "s"} passed every check`
             : "No concept passed every check — try more, or adjust the brief";
@@ -166,6 +167,7 @@ export function CreateLogo({ onOpen, active = true }: { onOpen: (c: ConceptState
                           concept={c}
                           checks={round.checks}
                           label={f?.label}
+                          title={round.plans?.[c.index]?.name}
                           selected={sel !== null && key(sel) === key(s)}
                           revealed={revealed.has(key(s))}
                           onReveal={() => { setRevealed((r) => new Set(r).add(key(s))); setSel(s); }}
@@ -187,6 +189,7 @@ export function CreateLogo({ onOpen, active = true }: { onOpen: (c: ConceptState
               label={selected?.label ?? ""}
               colors={b.colors}
               revealed={selected ? revealed.has(key(selected.sel)) : false}
+              plan={selectedRound?.plans?.[selected?.concept.index ?? -1]}
               onOpen={openSelected}
             />
           </aside>

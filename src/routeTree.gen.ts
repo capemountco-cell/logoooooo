@@ -13,6 +13,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as ApiBriefRouteImport } from './routes/api/brief'
 import { Route as ApiBriefExtractRouteImport } from './routes/api/brief-extract'
 import { Route as ApiConceptRouteImport } from './routes/api/concept'
+import { Route as ApiConceptPlanRouteImport } from './routes/api/concept-plan'
 import { Route as ApiEditImageRouteImport } from './routes/api/edit-image'
 import { Route as ApiLinkReferenceRouteImport } from './routes/api/link-reference'
 import { Route as ApiReferenceNoteRouteImport } from './routes/api/reference-note'
@@ -37,6 +38,11 @@ const ApiBriefExtractRoute = ApiBriefExtractRouteImport.update({
 const ApiConceptRoute = ApiConceptRouteImport.update({
   id: '/api/concept',
   path: '/api/concept',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiConceptPlanRoute = ApiConceptPlanRouteImport.update({
+  id: '/api/concept-plan',
+  path: '/api/concept-plan',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiEditImageRoute = ApiEditImageRouteImport.update({
@@ -70,6 +76,7 @@ export interface FileRoutesByFullPath {
   '/api/brief': typeof ApiBriefRoute
   '/api/brief-extract': typeof ApiBriefExtractRoute
   '/api/concept': typeof ApiConceptRoute
+  '/api/concept-plan': typeof ApiConceptPlanRoute
   '/api/edit-image': typeof ApiEditImageRoute
   '/api/link-reference': typeof ApiLinkReferenceRoute
   '/api/reference-note': typeof ApiReferenceNoteRoute
@@ -81,6 +88,7 @@ export interface FileRoutesByTo {
   '/api/brief': typeof ApiBriefRoute
   '/api/brief-extract': typeof ApiBriefExtractRoute
   '/api/concept': typeof ApiConceptRoute
+  '/api/concept-plan': typeof ApiConceptPlanRoute
   '/api/edit-image': typeof ApiEditImageRoute
   '/api/link-reference': typeof ApiLinkReferenceRoute
   '/api/reference-note': typeof ApiReferenceNoteRoute
@@ -93,6 +101,7 @@ export interface FileRoutesById {
   '/api/brief': typeof ApiBriefRoute
   '/api/brief-extract': typeof ApiBriefExtractRoute
   '/api/concept': typeof ApiConceptRoute
+  '/api/concept-plan': typeof ApiConceptPlanRoute
   '/api/edit-image': typeof ApiEditImageRoute
   '/api/link-reference': typeof ApiLinkReferenceRoute
   '/api/reference-note': typeof ApiReferenceNoteRoute
@@ -106,6 +115,7 @@ export interface FileRouteTypes {
     | '/api/brief'
     | '/api/brief-extract'
     | '/api/concept'
+    | '/api/concept-plan'
     | '/api/edit-image'
     | '/api/link-reference'
     | '/api/reference-note'
@@ -117,6 +127,7 @@ export interface FileRouteTypes {
     | '/api/brief'
     | '/api/brief-extract'
     | '/api/concept'
+    | '/api/concept-plan'
     | '/api/edit-image'
     | '/api/link-reference'
     | '/api/reference-note'
@@ -128,6 +139,7 @@ export interface FileRouteTypes {
     | '/api/brief'
     | '/api/brief-extract'
     | '/api/concept'
+    | '/api/concept-plan'
     | '/api/edit-image'
     | '/api/link-reference'
     | '/api/reference-note'
@@ -140,6 +152,7 @@ export interface RootRouteChildren {
   ApiBriefRoute: typeof ApiBriefRoute
   ApiBriefExtractRoute: typeof ApiBriefExtractRoute
   ApiConceptRoute: typeof ApiConceptRoute
+  ApiConceptPlanRoute: typeof ApiConceptPlanRoute
   ApiEditImageRoute: typeof ApiEditImageRoute
   ApiLinkReferenceRoute: typeof ApiLinkReferenceRoute
   ApiReferenceNoteRoute: typeof ApiReferenceNoteRoute
@@ -175,6 +188,13 @@ declare module '@tanstack/react-router' {
       path: '/api/concept'
       fullPath: '/api/concept'
       preLoaderRoute: typeof ApiConceptRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/concept-plan': {
+      id: '/api/concept-plan'
+      path: '/api/concept-plan'
+      fullPath: '/api/concept-plan'
+      preLoaderRoute: typeof ApiConceptPlanRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/edit-image': {
@@ -220,6 +240,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiBriefRoute: ApiBriefRoute,
   ApiBriefExtractRoute: ApiBriefExtractRoute,
   ApiConceptRoute: ApiConceptRoute,
+  ApiConceptPlanRoute: ApiConceptPlanRoute,
   ApiEditImageRoute: ApiEditImageRoute,
   ApiLinkReferenceRoute: ApiLinkReferenceRoute,
   ApiReferenceNoteRoute: ApiReferenceNoteRoute,

@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { Route as BriefRoute } from "@/routes/api/brief";
 import { Route as ConceptRoute } from "@/routes/api/concept";
 import { Route as ReviewRoute } from "@/routes/api/review";
+import { Route as PlanRoute } from "@/routes/api/concept-plan";
 import { normalizeBrief } from "@/lib/brief";
 import { isRetryable } from "@/lib/concept-pipeline";
 
@@ -170,5 +171,34 @@ describe("/api/review", () => {
     expect((calls[0]!.body as { model: string }).model).toBe("gpt-5-nano");
     expect(json.results.find((r) => r.id === "spelling")?.pass).toBe(false);
     expect(json.results.filter((r) => r.pass)).toHaveLength(5);
+  });
+});
+
+describe("/api/concept-plan", () => {
+  const json = (body: unknown) => new Request("http://localhost/api/concept-plan", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+
+  it("plans one different idea per concept with the cheap model and fills any gap", async () => {
+    mockFetch(() => responses({ concepts: [{ name: "Aligned arc", idea: "An arc of aligned forms.", symbol: "Three rising arcs", lettering: "Medium humanist sans", color: "Arcs green, text olive", layout: "Arc left of name" }] }));
+    const res = await post(PlanRoute)({ request: json({ brief: { ...brief, direction: "a ring with a T" }, references: [], count: 3, tried: ["Monogram: TFO"] }) });
+    expect(res.status).toBe(200);
+    const { plans } = (await res.json()) as { plans: { name: string }[] };
+    expect(plans).toHaveLength(3);
+    expect(plans[0]!.name).toBe("Aligned arc");
+    const body = calls[0]!.body as Record<string, unknown>;
+    expect(body["model"]).toBe("gpt-5-nano");
+    expect((body["text"] as { format: { name: string; strict: boolean } }).format).toMatchObject({ name: "concept_plans", strict: true });
+    expect(JSON.stringify(body["input"])).toContain("CLIENT'S EXISTING IDEA (refine in exactly one concept): a ring with a T");
+    expect(JSON.stringify(body["input"])).toContain("ALREADY TRIED IN EARLIER ROUNDS");
+  });
+
+  it("sends each concept's plan into its drawing prompt as structured fields", async () => {
+    mockFetch(() => new Response("event: x\n\n", { headers: { "Content-Type": "text/event-stream" } }));
+    const f = new FormData();
+    f.append("brief", JSON.stringify(brief));
+    f.append("references", "[]");
+    f.append("provider", "openai");
+    f.append("plan", JSON.stringify({ name: "Ember spark", idea: "A spark that is also a coffee bean.", symbol: "Bean-shaped spark", lettering: "Bold rounded sans", color: "Spark orange, text charcoal", layout: "Spark above name" }));
+    await post(ConceptRoute)({ request: request("/api/concept", f) });
+    expect((calls[0]!.body as { prompt: string }).prompt).toContain("CONCEPT 1 — EMBER SPARK: A spark that is also a coffee bean.");
   });
 });

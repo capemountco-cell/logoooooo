@@ -78,7 +78,8 @@ describe("palette in the prompt", () => {
   it("locks a hex palette with a job for each colour, and keeps plain colour words as guidance", async () => {
     const { paletteLine } = await import("@/lib/concept-prompt");
     const locked = paletteLine(["primary deep teal #0F5C5A", "accent gold #C9A24A", "neutral charcoal #1E2422"]);
-    expect(locked).toContain("use exactly these flat colours and no others");
+    expect(locked).toContain("use only these flat colours");
+    expect(locked).toContain("never a different colour per word");
     expect(locked).toContain("#0F5C5A — main colour for the symbol");
     expect(locked).toContain("#1E2422 — for the lettering");
     expect(paletteLine(["forest green", "cream"])).toBe("Colours: forest green, cream.");

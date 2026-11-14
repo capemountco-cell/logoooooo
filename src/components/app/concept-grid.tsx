@@ -3,6 +3,7 @@ import { whiteToArtboard } from "@/lib/artboard";
 import { Eye, Loader2, X } from "lucide-react";
 import type { CheckDef } from "@/lib/concept-prompt";
 import type { ConceptState } from "@/lib/concept-pipeline";
+import type { ConceptPlan } from "@/lib/concept-plan";
 import { cn } from "@/lib/utils";
 
 const PROVIDER = { openai: "OpenAI", grok: "Grok" } as const;
@@ -118,7 +119,7 @@ function CheckRow({ def, concept }: { def: CheckDef; concept: ConceptState }) {
  * blurred until every blocking box passes; a concept that still fails is hidden behind "Show anyway".
  */
 export function ConceptTile({
-  concept, checks, onPick, onSelect, selected, label, revealed = false, onReveal, compact,
+  concept, checks, onPick, onSelect, selected, label, revealed = false, onReveal, compact, title,
 }: {
   concept: ConceptState;
   checks: CheckDef[];
@@ -129,6 +130,8 @@ export function ConceptTile({
   revealed?: boolean;
   onReveal?: (() => void) | undefined;
   compact?: boolean;
+  /** The planned idea's name (concept-plan.ts); the creative lean name for older rounds. */
+  title?: string | undefined;
 }) {
   const failed = concept.stage === "failed";
   const shown = concept.stage === "passed" || (failed && revealed && Boolean(concept.image));
@@ -138,6 +141,7 @@ export function ConceptTile({
   const name = label ?? `Concept ${concept.index + 1}`;
   const tone = conceptTone(concept, revealed);
   const status = failed && revealed ? "Shown anyway" : stageLabel(concept, checks.length, notes);
+  const idea = title || directionName(concept.index);
 
   if (compact) {
     return (
@@ -159,7 +163,7 @@ export function ConceptTile({
 
   return (
     <article
-      aria-label={`${name}, ${directionName(concept.index)} (${PROVIDER[concept.provider]})`}
+      aria-label={`${name}, ${idea} (${PROVIDER[concept.provider]})`}
       className={cn("group flex flex-col overflow-hidden rounded-xl border bg-card transition-colors", selected ? "border-primary shadow-[0_0_0_1px_var(--color-primary)]" : "border-border hover:border-input")}
     >
       <button
@@ -189,7 +193,7 @@ export function ConceptTile({
       </button>
       <div className="flex h-[38px] items-center gap-2 border-t border-border px-3">
         <ToneDot tone={tone} />
-        <span className="truncate font-medium">{directionName(concept.index)}</span>
+        <span className="truncate font-medium" title={idea}>{idea}</span>
         {shown && notes > 0 && <span className="shrink-0 text-[12px] text-pending">· {notes} note{notes === 1 ? "" : "s"}</span>}
         {failed && revealed && <span className="shrink-0 text-[12px] text-pending">· shown anyway</span>}
         <span className="flex-1" />
@@ -218,7 +222,7 @@ export function briefSwatches(colors: string[]) {
 
 /** The side panel for the selected concept: its checks, the palette, and the export action. */
 export function ConceptDetail({
-  concept, checks, label, colors, revealed, onOpen, opening,
+  concept, checks, label, colors, revealed, onOpen, opening, plan,
 }: {
   concept: ConceptState | null;
   checks: CheckDef[];
@@ -227,6 +231,7 @@ export function ConceptDetail({
   revealed: boolean;
   onOpen: () => void;
   opening?: boolean;
+  plan?: ConceptPlan | undefined;
 }) {
   if (!concept) {
     return <p className="px-1 py-2 text-[13px] text-muted-foreground">Select a concept to see its checks.</p>;
@@ -238,8 +243,9 @@ export function ConceptDetail({
     <>
       <div className="flex h-[30px] items-center gap-2">
         <span className="font-semibold">{label}</span>
-        <span className="text-muted-foreground">{directionName(concept.index)} · {PROVIDER[concept.provider]}</span>
+        <span className="truncate text-muted-foreground">{plan?.name || directionName(concept.index)} · {PROVIDER[concept.provider]}</span>
       </div>
+      {plan?.idea && <p className="-mt-1.5 text-[12px] leading-relaxed text-subtle">{plan.idea}</p>}
       <section className="overflow-hidden rounded-xl border border-border bg-card" aria-label="Checks">
         <div className="flex h-9 items-center gap-2 border-b border-border bg-card-head px-4 font-medium text-subtle">
           Checks <span className="text-muted-foreground tabular-nums">{passedCount} of {checks.length}</span>

@@ -15,6 +15,8 @@ export type ConceptMetrics = {
   /** Artwork reaches the image edge (actually cut off, not just close). */
   touchesEdge: boolean;
   inkShare: number;
+  /** Average stroke width as a share of the artwork's short side (hairlines ≈ 0.01). */
+  stroke: number;
   /** Tiny isolated ink blobs still present (despeckle removes them before measuring). */
   specks: number;
   shapes: number;
@@ -235,8 +237,20 @@ export function measureConcept(rgba: Uint8ClampedArray, width: number, height: n
   // Small: the logo's short side at 48 px — a header logo or app icon (32 px favicons are a
   // separate simplified mark, not something a full logo must survive).
   const smallMatch = empty ? 0 : matchScore(solidSignature, smallSignature(solid, width, height, box, 48));
+  // Stroke weight: the average stroke width (2 × ink area ÷ ink outline, which is the width of a
+  // strip) relative to the artwork's short side. Hairline rings and thin type sit near 1%; sturdy
+  // logos well above 3%.
+  let boundary = 0;
+  for (let y = 1; y < height - 1; y++)
+    for (let x = 1; x < width - 1; x++) {
+      const i = y * width + x;
+      if (ink[i] && (!ink[i - 1] || !ink[i + 1] || !ink[i - width] || !ink[i + width])) boundary++;
+    }
+  const shortSide = empty ? 1 : Math.max(1, Math.min(x1 - x0 + 1, y1 - y0 + 1));
+  const stroke = boundary ? (2 * inkCount) / boundary / shortSide : 0;
   const advice = adviseColor(rgba, width, height);
   return {
+    stroke,
     borderClean: border ? clean / border : 0,
     edgeGap,
     touchesEdge,
@@ -259,6 +273,8 @@ export const LIMITS = {
   shapes: 400,
   colorReliance: 0.6,
   smallMatch: 0.6,
+  /** Average stroke width under this share of the artwork's short side reads as hairline. */
+  stroke: 0.018,
   copy: 0.82,
 } as const;
 
@@ -289,6 +305,7 @@ export function autoChecks(m: ConceptMetrics, brief: LogoBrief, checks: CheckDef
   const limit = colorLimit(brief);
   add("colors", m.colors <= limit, `Use at most ${limit} flat colours; merge or remove the extra colours and any colour noise.`);
   add("mono", m.colorReliance <= LIMITS.colorReliance, "Parts of the design are separated only by colour, so it falls apart in one colour: separate touching coloured shapes with a clear white gap or distinct outlines.");
+  add("weight", m.stroke >= LIMITS.stroke, "The lines and lettering are hairline-thin and will disappear at small sizes, in print and embroidered on a cap: make every stroke, line, ring and letter about twice as heavy (regular to bold weight), keeping the same design, layout and colours.");
   add("small", m.smallMatch >= LIMITS.smallMatch, "Too much fine detail to read at small sizes: thicken thin strokes, open up tight gaps and remove tiny details.");
   const copied = references.some((r) => matchScore(m.signature, r) >= LIMITS.copy);
   add("original", !copied, "The logo copies a reference image's shape too closely: create a clearly different, original design that only borrows the stated quality.");
