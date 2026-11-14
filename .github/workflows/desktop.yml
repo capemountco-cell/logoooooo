@@ -1,0 +1,123 @@
+name: Mac app
+
+# Builds LOGOO for Mac as a universal .dmg (Apple silicon and Intel in one file), modelled on Camu's
+# release workflow.
+#
+# - Every change to src-tauri/ (pull requests and main) builds it: download the .dmg from the run's
+#   "Artifacts" section.
+# - Push a tag like v0.2.0, or use "Run workflow" with a version, to attach it to a GitHub release.
+#
+# Signing and notarization happen only when the Apple secrets below exist (see docs/mac-app.md).
+# Without them the app is ad-hoc signed: it runs, but macOS asks you to approve it once
+# (right-click → Open, or System Settings → Privacy & Security → Open Anyway).
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+    paths: ["src-tauri/**", ".github/workflows/desktop.yml"]
+  pull_request:
+    paths: ["src-tauri/**", ".github/workflows/desktop.yml"]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to release, e.g. 0.2.0 (must match src-tauri/tauri.conf.json). Leave empty to only build."
+        required: false
+        default: ""
+
+permissions:
+  contents: write
+
+jobs:
+  dmg:
+    name: Universal .dmg
+    runs-on: macos-latest
+    env:
+      HAS_SIGNING_CERT: ${{ secrets.APPLE_CERTIFICATE != '' }}
+      TAG: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || (inputs.version != '' && format('v{0}', inputs.version) || '') }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin, x86_64-apple-darwin
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Check the tag matches the app version
+        if: env.TAG != ''
+        run: |
+          want="${TAG#v}"
+          have="$(node -p 'require("./src-tauri/tauri.conf.json").version')"
+          if [ "$want" != "$have" ]; then
+            echo "::error::Tag is v$want but src-tauri/tauri.conf.json says $have."
+            exit 1
+          fi
+
+      - name: Test the Mac shell
+        working-directory: src-tauri
+        run: cargo test --locked
+
+      - name: Import the signing certificate
+        if: env.HAS_SIGNING_CERT == 'true'
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+        run: |
+          keychain="$RUNNER_TEMP/build.keychain"
+          password="$(openssl rand -base64 24)"
+          echo "$APPLE_CERTIFICATE" | base64 --decode > "$RUNNER_TEMP/cert.p12"
+          security create-keychain -p "$password" "$keychain"
+          security set-keychain-settings -lut 21600 "$keychain"
+          security unlock-keychain -p "$password" "$keychain"
+          security import "$RUNNER_TEMP/cert.p12" -P "$APPLE_CERTIFICATE_PASSWORD" -A -t cert -f pkcs12 -k "$keychain"
+          security set-key-partition-list -S apple-tool:,apple: -k "$password" "$keychain"
+          security list-keychains -d user -s "$keychain" $(security list-keychains -d user | tr -d '"')
+          rm "$RUNNER_TEMP/cert.p12"
+
+      - name: Build (and sign and notarize when the secrets exist)
+        working-directory: src-tauri
+        env:
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          # Empty values would make Tauri try to sign with an identity called "".
+          for v in APPLE_SIGNING_IDENTITY APPLE_ID APPLE_PASSWORD APPLE_TEAM_ID; do
+            [ -n "${!v}" ] || unset "$v"
+          done
+          npx -y @tauri-apps/cli@2 build --target universal-apple-darwin --bundles app,dmg
+          mkdir -p ../release
+          cp target/universal-apple-darwin/release/bundle/dmg/*.dmg ../release/
+          ls -la ../release
+
+      - name: Check the app
+        run: |
+          app="src-tauri/target/universal-apple-darwin/release/bundle/macos/LOGOO.app"
+          for bin in "$app"/Contents/MacOS/*; do lipo -archs "$bin"; done
+          codesign --verify --deep --strict --verbose=2 "$app"
+          hdiutil verify release/*.dmg
+
+      - name: Attach to a GitHub release
+        if: env.TAG != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          dmg="$(ls release/*.dmg | head -1)"
+          shasum -a 256 "$dmg" > "$dmg.sha256"
+          # A stable name, so .../releases/latest/download/LOGOO.dmg is always the newest.
+          cp "$dmg" release/LOGOO.dmg
+          gh release view "$TAG" >/dev/null 2>&1 \
+            || gh release create "$TAG" --target "$GITHUB_SHA" --title "LOGOO ${TAG#v}" --generate-notes
+          gh release upload "$TAG" "$dmg" "$dmg.sha256" release/LOGOO.dmg --clobber
+
+      - name: Upload the .dmg
+        uses: actions/upload-artifact@v4
+        with:
+          name: LOGOO-mac
+          path: release/*.dmg
+          if-no-files-found: error

@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { initDesktop } from "@/lib/desktop";
 import { AppHeader, type View } from "@/components/app/app-header";
 import { ResultWorkspace } from "@/components/app/result-workspace";
 import { BriefBatch } from "@/components/brief-batch";
@@ -36,6 +37,7 @@ function Index() {
   const [notice, setNotice] = useState<string | null>(null);
   const [colorBusy, setColorBusy] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  useEffect(initDesktop, []);
   const [batchRunning, setBatchRunning] = useState(0);
   // Sections by keyboard, as in a Mac app: ⌘1 Create, ⌘2 Batch, ⌘3 Import, ⌘, Settings.
   useShortcuts([

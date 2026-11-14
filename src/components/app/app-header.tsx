@@ -40,19 +40,20 @@ export const ToolButton = forwardRef<HTMLButtonElement, ComponentPropsWithoutRef
 
 /**
  * The window top, laid out like Camu's Mac toolbar: the LOGOO wordmark centred in the title row,
- * then large icon-and-label tools — places on the left, settings on the right. No window buttons:
- * LOGOO runs in the browser, whose own frame surrounds it.
+ * then large icon-and-label tools — places on the left, settings on the right. In the browser there
+ * are no window buttons; in the Mac app (src-tauri) the real traffic lights sit in the title row and
+ * the header's empty areas drag the window (data-tauri-drag-region; ignored on the web).
  */
 export function AppHeader({ view, onView, badges, settingsOpen, onSettings }: { view: View; onView: (v: View) => void; badges?: Partial<Record<View, number>>; settingsOpen?: boolean; onSettings?: (open: boolean) => void }) {
   return (
-    <header className="flex flex-none flex-col">
-      <div className="flex h-10 items-center justify-center">
+    <header className="flex flex-none flex-col" data-tauri-drag-region>
+      <div className="flex h-10 items-center justify-center" data-tauri-drag-region>
         <button type="button" onClick={() => onView("create")} className="inline-flex h-8 items-center rounded-md px-2 text-foreground" aria-label="LOGOO home">
           <BrandMark height={12} />
         </button>
       </div>
-      <nav aria-label="Sections" className="flex items-end justify-between px-2 pb-1 sm:px-3">
-        <div className="flex gap-1">
+      <nav aria-label="Sections" className="flex items-end justify-between px-2 pb-1 sm:px-3" data-tauri-drag-region>
+        <div className="flex gap-1" data-tauri-drag-region>
           {VIEWS.map((v) => (
             <ToolButton key={v.id} current={view === v.id} icon={v.icon} label={v.label} badge={badges?.[v.id]} title={`${v.label} (${MOD}${v.key})`} onClick={() => onView(v.id)} />
           ))}

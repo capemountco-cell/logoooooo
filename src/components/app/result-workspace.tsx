@@ -157,8 +157,8 @@ export function ResultWorkspace({ result, versions, onPickVersion, onNew, onReru
   return (
     <div className="flex min-h-dvh flex-col bg-background">
       {/* Title bar, as in a Mac document window: back, breadcrumb, actions. */}
-      <header className="flex h-[52px] flex-none items-center justify-between gap-3 px-3 sm:px-4">
-        <div className="flex min-w-0 items-center gap-2">
+      <header className="flex h-[52px] flex-none items-center justify-between gap-3 px-3 sm:px-4 [.desktop-app_&]:pl-[84px]" data-tauri-drag-region>
+        <div className="flex min-w-0 items-center gap-2" data-tauri-drag-region>
           <button type="button" onClick={onNew} aria-label="Back" title="Back (Esc)" className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-muted-foreground hover:bg-secondary hover:text-foreground">
             <ArrowLeft className="h-4 w-4" aria-hidden="true" />
           </button>

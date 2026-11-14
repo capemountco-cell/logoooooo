@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LOGOO</title>
+<style>
+  :root { color-scheme: dark; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    display: grid; place-items: center; background: #141416; color: #e6e6ea;
+    font: 13px/1.45 -apple-system, BlinkMacSystemFont, "SF Pro Text", Inter, system-ui, sans-serif;
+    -webkit-user-select: none; user-select: none; cursor: default;
+  }
+  .drag { position: fixed; inset: 0 0 auto 0; height: 40px; }
+  main { display: flex; flex-direction: column; align-items: center; gap: 14px; text-align: center; }
+  svg { color: #e6e6ea; }
+  p { margin: 0; color: #8a8a90; }
+  .spin { width: 16px; height: 16px; border-radius: 50%; border: 2px solid #252527; border-top-color: #f0bf3a; animation: s 0.8s linear infinite; }
+  @keyframes s { to { transform: rotate(360deg); } }
+  button {
+    height: 28px; padding: 0 14px; border: 0; border-radius: 8px; background: #5e6ad2; color: #fff;
+    font: 600 13px -apple-system, BlinkMacSystemFont, Inter, system-ui, sans-serif;
+  }
+  button:hover { background: #6c78e0; }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<div class="drag" data-tauri-drag-region></div>
+<main>
+  <svg viewBox="35.13 32.322 1198.084 136.486" height="14" fill="currentColor" role="img" aria-label="LOGOO"><path fill-rule="evenodd" d="M774.343 32.322L974.717 32.322C981.549 32.322 987.087 37.802 987.087 44.633L987.087 156.422C987.087 163.253 981.549 168.808 974.717 168.808L774.343 168.808C766.885 168.808 760.839 162.746 760.839 155.288L760.839 45.768C760.839 38.31 766.885 32.322 774.343 32.322ZM1020.948 32.322L1220.843 32.322C1227.675 32.322 1233.213 37.737 1233.213 44.568L1233.213 156.436C1233.213 163.268 1227.675 168.808 1220.843 168.808L1019.814 168.808C1012.982 168.808 1007.444 163.268 1007.444 156.436L1007.444 45.702C1007.444 38.244 1013.49 32.322 1020.948 32.322ZM281.69 32.322L483.044 32.322C489.876 32.322 495.414 38.003 495.414 44.834L495.414 156.46C495.414 163.291 489.876 168.808 483.044 168.808L280.556 168.808C273.724 168.808 268.186 163.291 268.186 156.46L268.186 45.968C268.186 38.51 274.232 32.322 281.69 32.322ZM740.841 58.969L543.76 58.969L543.76 140.832L713.321 140.832L713.321 113.032L627.298 113.032L627.298 85.204L728.6 85.204C735.432 85.204 740.97 90.742 740.97 97.574L740.97 155.279C740.97 162.737 734.924 168.808 727.466 168.808L529.231 168.808C521.772 168.808 515.727 162.737 515.727 155.279L515.727 45.863C515.727 38.405 521.772 32.322 529.231 32.322L728.472 32.322C735.303 32.322 740.841 37.897 740.841 44.729L740.841 58.969ZM63.787 32.972L63.787 140.832L247.723 140.832L247.723 168.808L35.13 168.808L35.13 32.972L63.787 32.972ZM296.049 58.969L296.049 140.832L467.289 140.832L467.289 58.969L296.049 58.969ZM788.809 58.969L788.809 140.832L959.216 140.832L959.216 58.969L788.809 58.969ZM1035.04 58.969L1035.04 140.832L1205.25 140.832L1205.25 58.969L1035.04 58.969Z"/></svg>
+  <div id="wait"><div class="spin" aria-hidden="true"></div></div>
+  <p id="msg" role="status">Opening LOGOO…</p>
+  <button id="retry" type="button" hidden>Try again</button>
+</main>
+<script>
+  // The app itself is hosted (the AI keys stay on the server). Check the connection first, so
+  // an offline launch says so instead of showing a blank window.
+  const APP = "https://logoooooo.lovable.app/";
+  const msg = document.getElementById("msg");
+  const retry = document.getElementById("retry");
+  const wait = document.getElementById("wait");
+  async function open() {
+    retry.hidden = true; wait.hidden = false; msg.textContent = "Opening LOGOO…";
+    try {
+      const ctl = new AbortController();
+      const t = setTimeout(() => ctl.abort(), 10000);
+      await fetch(APP, { mode: "no-cors", cache: "no-store", signal: ctl.signal });
+      clearTimeout(t);
+      location.replace(APP);
+    } catch {
+      wait.hidden = true;
+      msg.textContent = "LOGOO needs an internet connection to draw logos. Check your connection, then try again.";
+      retry.hidden = false;
+    }
+  }
+  retry.addEventListener("click", open);
+  window.addEventListener("online", open);
+  open();
+</script>
+</body>
+</html>
