@@ -69,7 +69,7 @@ export function ReferenceReview({
         <SheetHeader>
           <SheetTitle>References</SheetTitle>
           <SheetDescription>
-            Picked by LOGOO for this brief{provider ? ` (via ${provider === "brave" ? "Brave Search" : "Openverse"})` : ""}. Each one lends only its role, as a written description — nothing is copied. Changes apply to the next round.
+            Picked by LOGOO for this brief{provider ? ` (via ${provider === "brave" ? "Brave Search" : "Openverse"})` : ""}. The image AI looks at each one for its role only (or reads a description, if that's turned off in Settings); a concept that copies one is caught. Changes apply to the next round.
           </SheetDescription>
         </SheetHeader>
 

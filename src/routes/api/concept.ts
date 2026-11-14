@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { normalizeBrief, REFERENCE_ROLE_IDS, type ReferenceNote } from "@/lib/brief";
+import { normalizeBrief, REFERENCE_ROLE_IDS, type ReferenceNote, type ReferenceRole } from "@/lib/brief";
 import { buildConceptPrompt, buildFixPrompt } from "@/lib/concept-prompt";
 import { normalizePlan } from "@/lib/concept-plan";
 import { editImage, generateImage, imageSettings } from "@/lib/image-gateway.server";
@@ -56,7 +56,18 @@ export const Route = createFileRoute("/api/concept")({
         } catch {
           return new Response("Invalid plan", { status: 400 });
         }
-        const prompt = fixing ? buildFixPrompt(brief, issues) : buildConceptPrompt(brief, references, index, plan);
+        // Reference pictures the image model looks at (OpenAI only, new drawings only), each with
+        // the one role it may lend. Checked by shape, type and size; at most four.
+        const pictures: { file: File; role: ReferenceRole }[] = [];
+        for (let i = 0; i < 4 && !fixing && provider === "openai"; i++) {
+          const file = form.get(`refImage${i}`);
+          const role = String(form.get(`refRole${i}`) ?? "");
+          if (!isFile(file)) continue;
+          if (!(REFERENCE_ROLE_IDS as string[]).includes(role)) return new Response("Invalid reference role", { status: 400 });
+          if (file.size > 4_000_000 || !/^image\/(png|jpeg|webp)$/.test(file.type)) return new Response("Reference pictures must be PNG, JPG or WebP under 4 MB", { status: 400 });
+          pictures.push({ file, role: role as ReferenceRole });
+        }
+        const prompt = fixing ? buildFixPrompt(brief, issues) : buildConceptPrompt(brief, references, index, plan, pictures.map((p) => p.role));
         const streaming = form.get("stream") !== "false";
 
         if (provider === "grok") return fixing ? grokEdit(prompt, [draft], request.signal) : grokGenerate(prompt, request.signal);
@@ -72,6 +83,16 @@ export const Route = createFileRoute("/api/concept")({
           edit.set("size", "1024x1024");
           edit.set("stream", String(streaming));
           upstream = await editImage({ ...imageSettings, apiKey }, edit, request.signal);
+        } else if (pictures.length) {
+          // With reference pictures: the edit endpoint takes them as input images (like ChatGPT),
+          // and the prompt says to draw a new logo, not edit them.
+          const withRefs = new FormData();
+          withRefs.set("prompt", prompt);
+          for (const p of pictures) withRefs.append("image[]", p.file);
+          withRefs.set("quality", "high");
+          withRefs.set("size", "1024x1024");
+          withRefs.set("stream", String(streaming));
+          upstream = await editImage({ ...imageSettings, apiKey }, withRefs, request.signal);
         } else {
           upstream = await generateImage({ ...imageSettings, apiKey }, prompt, streaming, request.signal, { size: "1024x1024", quality: "high" });
         }

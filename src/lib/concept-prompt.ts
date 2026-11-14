@@ -1,5 +1,5 @@
 // Prompts for generating, reviewing and fixing logo concepts (pure, shared by client and server).
-import { logoType, SHOWS_NAME, type LogoBrief, type ReferenceNote } from "@/lib/brief";
+import { logoType, SHOWS_NAME, type LogoBrief, type ReferenceNote, type ReferenceRole } from "@/lib/brief";
 import { briefHexes } from "@/lib/palette";
 import { planLines, type ConceptPlan } from "@/lib/concept-plan";
 
@@ -92,12 +92,35 @@ export function paletteLine(colors: string[]) {
   return `PALETTE (use only these flat colours — 1 to 3 of them, not necessarily all; white is the background): ${colors.map((c) => `${c}${role(c)}`).join("; ")}. All lettering in one of them; never a different colour per word.`;
 }
 
+/** What the image model may take from a reference picture of each role. */
+const TAKE: Record<ReferenceRole, string> = {
+  typography: "ONLY its lettering style — letterform shapes, weight, width, case and energy — drawn for this brand's own name",
+  style: "ONLY its visual style — the kind of shapes, line quality, level of detail and finish",
+  colour: "ONLY its colour mood (the exact palette below still wins)",
+  layout: "ONLY its arrangement — how symbol, name and supporting text are composed",
+  concept: "ONLY the kind of idea it expresses, turned into a new symbol for this brand",
+  mood: "ONLY the feeling it gives",
+};
+
+/**
+ * Instructions for reference pictures sent with the prompt (images 1…n, in order). The model looks
+ * at each picture for its role only and must draw a new logo — the copy check still blocks copies.
+ */
+export function referencePictureLines(roles: ReferenceRole[]) {
+  if (!roles.length) return "";
+  return [
+    `VISUAL REFERENCES: The ${roles.length === 1 ? "image" : `${roles.length} images`} provided ${roles.length === 1 ? "is a reference picture" : "are reference pictures"} chosen for this brief — NOT a logo to edit or trace. Study ${roles.length === 1 ? "it" : "each one"} for its role only:`,
+    ...roles.map((r, i) => `- Image ${i + 1} (${r.toUpperCase()}): take ${TAKE[r]}.`),
+    "Then draw a brand-new, original logo for this brand on a fresh plain white canvas. Never reproduce a reference's symbol, wording, layout or overall design, and never include a reference's own name or text.",
+  ].join("\n");
+}
+
 /**
  * The prompt for one concept. With a plan (concept-plan.ts) the concept follows its planned idea;
  * without one, `index` picks a creative lean (0–3). The client's existing idea (brief.direction)
  * reaches the drawing only through the plan that refines it, never every concept.
  */
-export function buildConceptPrompt(brief: LogoBrief, references: ReferenceNote[], index = 0, plan?: ConceptPlan | null) {
+export function buildConceptPrompt(brief: LogoBrief, references: ReferenceNote[], index = 0, plan?: ConceptPlan | null, pictures: ReferenceRole[] = []) {
   const type = logoType(brief.logoType);
   const facts = [
     brief.industry && `Industry: ${brief.industry}.`,
@@ -121,6 +144,7 @@ export function buildConceptPrompt(brief: LogoBrief, references: ReferenceNote[]
     `LOGO TYPE — ${type.label.toUpperCase()}: ${type.rule}`,
     facts.join("\n"),
     refs,
+    referencePictureLines(pictures),
     ...textRules(brief),
     plan ? planLines(plan, index) : `CREATIVE DIRECTION (concept ${index + 1}): ${DIRECTIONS[index % DIRECTIONS.length]} Stay true to the brief's personality.`,
     DESIGN_RULES,

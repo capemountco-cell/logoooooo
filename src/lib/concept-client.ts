@@ -83,7 +83,23 @@ export async function cleanBrief(notes: string, refs: PreparedRef[], signal: Abo
   return { brief: normalizeBrief(json.brief), references: json.references ?? [] };
 }
 
-export type JobInput = { brief: LogoBrief; references: ReferenceNote[]; signatures: Float32Array[]; /** One planned idea per concept index. */ plans?: ConceptPlan[] };
+export type JobInput = {
+  brief: LogoBrief;
+  references: ReferenceNote[];
+  signatures: Float32Array[];
+  /** One planned idea per concept index. */
+  plans?: ConceptPlan[];
+  /** Reference pictures the image model may look at, each for its role only (setting "Let the image AI see references"). */
+  pictures?: { role: ReferenceRole; image: string }[];
+};
+
+/** A reference picture as a ≤768 px PNG for the image model (flattened on white, sRGB). */
+async function pictureFile(src: string, i: number) {
+  const { canvas } = await imagePixels(src, 768);
+  const blob = await new Promise<Blob | null>((r) => canvas.toBlob(r, "image/png"));
+  if (!blob) throw new Error("Could not prepare a reference picture.");
+  return new File([blob], `reference-${i + 1}.png`, { type: "image/png" });
+}
 
 /**
  * Plans a round: one genuinely different idea per concept (concept-plan.ts). Never blocks a
@@ -106,6 +122,12 @@ export async function planConcepts(brief: LogoBrief, references: ReferenceNote[]
 export function conceptDeps(input: JobInput, checks: CheckDef[] = checklist(input.brief, input.references.length > 0)): ConceptDeps {
   const briefJson = JSON.stringify(input.brief);
   const refsJson = JSON.stringify(input.references);
+  // Prepared once per job and shared by every concept; a picture that can't be read is left out.
+  let pictures: Promise<{ role: ReferenceRole; file: File }[]> | null = null;
+  const preparePictures = () =>
+    (pictures ??= Promise.all((input.pictures ?? []).slice(0, 4).map((p, i) => pictureFile(p.image, i).then((file) => ({ role: p.role, file })).catch(() => null))).then((all) =>
+      all.filter((x): x is { role: ReferenceRole; file: File } => Boolean(x)),
+    ));
   return {
     draw: async (req, onFrame, signal) => {
       const form = new FormData();
@@ -118,6 +140,11 @@ export function conceptDeps(input: JobInput, checks: CheckDef[] = checklist(inpu
       if (req.draft && req.issues) {
         form.append("image", logoFile(req.draft, "draft.png", "image/png"));
         form.append("issues", JSON.stringify(req.issues));
+      } else if (req.provider === "openai") {
+        (await preparePictures()).forEach((p, i) => {
+          form.append(`refImage${i}`, p.file);
+          form.append(`refRole${i}`, p.role);
+        });
       }
       let final = "";
       await streamImage("/api/concept", form, (src, isFinal) => {
