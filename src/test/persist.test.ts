@@ -10,7 +10,8 @@ describe("autosave", () => {
       rounds: [{ id: "r1", checks: [], refs: [], concepts: [concept(0, "passed"), concept(1, "drawing"), concept(2, "fixing")] }],
     })!;
     expect(snap.phase).toBe("done");
-    expect(snap.picked).toBe(true);
+    // The search never finished before the crash, so the next round searches again.
+    expect(snap.picked).toBe(false);
     expect(snap.rounds[0]!.concepts.map((c) => c.stage)).toEqual(["passed", "failed", "failed"]);
     expect(snap.rounds[0]!.concepts[1]!.note).toBe("Interrupted");
     expect(snap.rounds[0]!.concepts[1]!.image).toBe("img1"); // still viewable with "Show anyway"

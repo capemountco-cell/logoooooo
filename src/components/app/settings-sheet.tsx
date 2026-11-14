@@ -42,7 +42,7 @@ export function SettingsSheet({ trigger, open, onOpenChange }: { trigger?: React
     saveSettings(next);
   };
   const rows: { key: keyof AppSettings; title: string; note: string; soon?: boolean }[] = [
-    { key: "autoRefs", title: "Find references automatically", note: "Before each first round, LOGOO searches for reference logos and picks the best for style, concept and lettering. Review them after any round." },
+    { key: "autoRefs", title: "Find references automatically", note: "LOGOO searches Brave Image Search for real logos in your space and picks the best for style, concept and lettering — only for what your own references don't cover. If a search fails, it tries again next round. Review them after any round." },
     { key: "refPictures", title: "Let the image AI see references", note: "On: the image AI looks at each reference picture (for its role only), like ChatGPT does. Off: it only gets a short written description. A concept that copies a reference is caught either way." },
     { key: "grok", title: "Use Grok too", note: "Off: each round is 3 concepts from OpenAI. On: 4 concepts per round — 2 from OpenAI, 2 from Grok — for more variety." },
     { key: "identity", title: "Brand identity package", note: "Palette, type pairing, logo versions, favicon and social avatars.", soon: true },
