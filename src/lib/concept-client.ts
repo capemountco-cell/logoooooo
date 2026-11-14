@@ -13,6 +13,7 @@ import { streamImage } from "@/lib/stream-image";
 import type { AutoReference, Candidate, SearchProvider } from "@/lib/reference-search";
 import { TILE, tileRects } from "@/lib/brief-extract";
 import { linkContext } from "@/lib/link-reference";
+import { fallbackPlans, normalizePlan, readPlans, type ConceptPlan } from "@/lib/concept-plan";
 import { aggregateSwatches, buildPalette, logoSwatches, type PaletteColor } from "@/lib/palette";
 
 /** Pixels of an image (data URL or file), converted to sRGB by the canvas, long side ≤ maxSide. */
@@ -82,7 +83,24 @@ export async function cleanBrief(notes: string, refs: PreparedRef[], signal: Abo
   return { brief: normalizeBrief(json.brief), references: json.references ?? [] };
 }
 
-export type JobInput = { brief: LogoBrief; references: ReferenceNote[]; signatures: Float32Array[] };
+export type JobInput = { brief: LogoBrief; references: ReferenceNote[]; signatures: Float32Array[]; /** One planned idea per concept index. */ plans?: ConceptPlan[] };
+
+/**
+ * Plans a round: one genuinely different idea per concept (concept-plan.ts). Never blocks a
+ * round — if planning fails, distinct fallback strategies from the brief are used.
+ */
+export async function planConcepts(brief: LogoBrief, references: ReferenceNote[], count: number, tried: string[], signal?: AbortSignal): Promise<ConceptPlan[]> {
+  try {
+    const res = await fetch("/api/concept-plan", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ brief, references, count, tried }), signal: signal ?? null });
+    if (!res.ok) throw new Error(String(res.status));
+    const { plans } = (await res.json()) as { plans: unknown[] };
+    const ok = (Array.isArray(plans) ? plans : []).map(normalizePlan).filter((p): p is ConceptPlan => Boolean(p));
+    return ok.length >= count ? ok.slice(0, count) : readPlans({ concepts: ok }, brief, count);
+  } catch (e) {
+    if (signal?.aborted) throw e;
+    return fallbackPlans(brief, count);
+  }
+}
 
 /** The draw/check dependencies for one job's concepts. */
 export function conceptDeps(input: JobInput, checks: CheckDef[] = checklist(input.brief, input.references.length > 0)): ConceptDeps {
@@ -95,6 +113,8 @@ export function conceptDeps(input: JobInput, checks: CheckDef[] = checklist(inpu
       form.append("references", refsJson);
       form.append("index", String(req.index));
       form.append("provider", req.provider);
+      const plan = input.plans?.[req.index];
+      if (plan) form.append("plan", JSON.stringify(plan));
       if (req.draft && req.issues) {
         form.append("image", logoFile(req.draft, "draft.png", "image/png"));
         form.append("issues", JSON.stringify(req.issues));

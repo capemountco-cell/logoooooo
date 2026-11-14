@@ -117,6 +117,13 @@ export type LogoBrief = {
   typography: string;
   mustHave: string[];
   avoid: string[];
+  /**
+   * An idea the client already has ("existing direction, open to refinement"). It is one option,
+   * not a rule: the concept planner refines it in one concept and explores others (concept-plan.ts).
+   */
+  direction: string;
+  /** What the business is, what makes it different and how it should feel — what concepts mean. */
+  story: string;
   /** One clear sentence an image model can act on. */
   summary: string;
   /** Critical facts the user did not give (e.g. "brand name"). */
@@ -129,7 +136,8 @@ export const BRIEF_INSTRUCTIONS = [
   "BRAND NAME AND TAGLINE: copy them character for character exactly as the client typed them — same spelling, case, spaces and punctuation. Never correct, translate, expand or invent them. If the client gave no name, leave brandName empty and add \"brand name\" to missing. Only include a tagline the client explicitly asked to appear in the logo.",
   "EMPTY FIELDS: form placeholders such as \"Unspecified\", \"Not specified\", \"None\", \"N/A\" or \"—\" mean the client gave nothing for that field. Leave it empty — never use the placeholder word itself as a slogan, name, colour or anything else.",
   `LOGO TYPE: choose one of: ${LOGO_TYPES.map((t) => `${t.id} (${t.short})`).join(", ")}. Combination marks are by far the most common choice for professional brands and the safest default: use "combination" unless the notes clearly point elsewhere. Signals: the client asks for a type by name or description → use it; only initials / a long or multi-word name they want shortened → lettermark; wants just the name, or the name is short and distinctive with no symbol idea → wordmark; wants an app-icon-like single letter → letterform; wants only an icon of a concrete thing → pictorial; tech, finance or an abstract idea with no concrete object, symbol only → abstract; heritage, craft beer, coffee, schools, clubs, sports, "badge", "vintage" → emblem; kids, food, gaming, sports teams, "character" → mascot; "minimal line", "single line", "outline" → line. Give a one-sentence reason and two sensible alternatives.`,
-  "Fill the other fields from the notes, inferring sensibly where the client implies something (e.g. a children's dentist suggests friendly and playful). personality: 3–5 adjectives. colors: plain colour names or hex values the client wants (empty if none stated; you may infer one fitting direction). typography: the lettering direction (e.g. \"rounded geometric sans, lowercase\"). symbolIdeas: 0–3 concrete symbol ideas if a symbol is part of the type. mustHave / avoid: explicit requirements and exclusions. summary: one clear sentence describing the logo to design.",
+  "Fill the other fields from the notes, inferring sensibly where the client implies something (e.g. a children's dentist suggests friendly and playful). personality: 3–5 adjectives. colors: plain colour names or hex values the client wants (empty if none stated; you may infer one fitting direction). typography: the lettering direction (e.g. \"rounded geometric sans, lowercase\"). symbolIdeas: 0–3 concrete symbol ideas if a symbol is part of the type. mustHave / avoid: explicit requirements and exclusions only (hard rules the client stated). summary: one clear sentence describing the logo to design.",
+  "DIRECTION vs RULES: an idea the client already has in mind — \"existing direction\", \"current idea\", \"logo concept: …\", \"open to refinement\" — goes in direction, word for word in substance. It is one option to refine, not a requirement: never copy it into mustHave, symbolIdeas, typography or summary. story: 2–3 plain sentences on what the business does, what makes it different from competitors and how the brand should feel (the meaning a designer would build on).",
   "Use the reference notes, if any, as facts about what each reference image should contribute; do not change their roles.",
 ].join("\n");
 
@@ -155,10 +163,12 @@ export const BRIEF_SCHEMA = {
     typography: str,
     mustHave: strList,
     avoid: strList,
+    direction: str,
+    story: str,
     summary: str,
     missing: strList,
   },
-  required: ["brandName", "tagline", "industry", "audience", "personality", "logoType", "typeReason", "alternativeTypes", "symbolIdeas", "colors", "typography", "mustHave", "avoid", "summary", "missing"],
+  required: ["brandName", "tagline", "industry", "audience", "personality", "logoType", "typeReason", "alternativeTypes", "symbolIdeas", "colors", "typography", "mustHave", "avoid", "direction", "story", "summary", "missing"],
 } as const;
 
 /**
@@ -197,6 +207,8 @@ export function normalizeBrief(raw: unknown): LogoBrief {
     typography: text(r["typography"], 160),
     mustHave: list(r["mustHave"], 6),
     avoid: list(r["avoid"], 6),
+    direction: text(r["direction"], 300),
+    story: text(r["story"], 600),
     summary: text(r["summary"], 400),
     missing: list(r["missing"], 4, 60),
   };

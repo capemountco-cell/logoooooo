@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { MAX_REFERENCES, type LogoBrief, type ReferenceNote, type ReferenceRole } from "@/lib/brief";
 import { findLinks, LINK_CONTEXT_HEADER } from "@/lib/link-reference";
-import { cleanBrief, conceptDeps, describeRef, findAutoRefs, measurePalette, openLink, type PreparedRef, type RefItem } from "@/lib/concept-client";
+import { cleanBrief, conceptDeps, describeRef, findAutoRefs, measurePalette, openLink, planConcepts, type PreparedRef, type RefItem } from "@/lib/concept-client";
 import { buildPalette, paletteToColors } from "@/lib/palette";
 import { checklist, conceptProviders, requiredText, type CheckDef } from "@/lib/concept-prompt";
 import { runConcept, type ConceptState } from "@/lib/concept-pipeline";
+import type { ConceptPlan } from "@/lib/concept-plan";
 import type { Candidate, SearchProvider } from "@/lib/reference-search";
 import { loadSettings } from "@/components/app/settings-sheet";
 import { loadSaved, restoreSnapshot, saveSoon, type JobSnapshot } from "@/lib/persist";
@@ -12,7 +13,7 @@ import { loadSaved, restoreSnapshot, saveSoon, type JobSnapshot } from "@/lib/pe
 export type JobPhase = "idle" | "briefing" | "brief" | "generating" | "done";
 
 /** One press of Generate: four concepts, the checklist they were held to, and the references used. */
-export type Round = { id: string; concepts: ConceptState[]; checks: CheckDef[]; refs: RefItem[] };
+export type Round = { id: string; concepts: ConceptState[]; checks: CheckDef[]; refs: RefItem[]; /** The planned idea of each concept (by index). */ plans?: ConceptPlan[] };
 
 export type RefStatus = "idle" | "searching" | "ready" | "none" | "failed";
 
@@ -58,6 +59,8 @@ export function useBriefJob(persistKey?: string) {
   const [provider, setProvider] = useState<SearchProvider | null>(null);
   const [refStatus, setRefStatus] = useState<RefStatus>("idle");
   const [rounds, setRounds] = useState<Round[]>([]);
+  const roundsRef = useRef<Round[]>([]);
+  roundsRef.current = rounds;
   const [error, setError] = useState<string | null>(null);
   /** Non-blocking news, e.g. a link in the brief that couldn't be opened. */
   const [notice, setNotice] = useState<string | null>(null);
@@ -211,10 +214,14 @@ export function useBriefJob(persistKey?: string) {
         setBrief(brief_);
       }
     }
-    const job = { brief: brief_, references: notes(use), signatures: use.map((r) => r.signature) };
+    // Plan the round: a different idea per concept, avoiding ideas earlier rounds already tried.
+    const tried = roundsRef.current.flatMap((r) => r.plans ?? []).map((p) => `${p.name}: ${p.idea}`).slice(0, 12);
+    const plans = await planConcepts(brief_, notes(use), providers.length, tried, abort.signal).catch(() => null);
+    if (abort.signal.aborted || !plans) return;
+    const job = { brief: brief_, references: notes(use), signatures: use.map((r) => r.signature), plans };
     const checks = checklist(brief_, use.length > 0);
     const deps = conceptDeps(job, checks);
-    setRounds((all) => all.map((r) => (r.id === id ? { ...r, checks, refs: use } : r)));
+    setRounds((all) => all.map((r) => (r.id === id ? { ...r, checks, refs: use, plans } : r)));
     await Promise.all(
       providers.map((p, index) =>
         runConcept({ provider: p, index, checks }, deps, abort.signal, (s) => {

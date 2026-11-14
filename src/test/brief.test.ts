@@ -100,7 +100,7 @@ describe("concept prompts", () => {
 describe("review", () => {
   it("lists every check and only asks the reviewer for its own", () => {
     const checks = checklist(brief(), true);
-    expect(checks.map((c) => c.id)).toEqual(["background", "margin", "clean", "colors", "mono", "small", "original", "spelling", "extra_text", "type", "brief", "references", "flat", "quality"]);
+    expect(checks.map((c) => c.id)).toEqual(["background", "margin", "clean", "colors", "mono", "weight", "small", "original", "spelling", "extra_text", "type", "brief", "references", "flat", "quality"]);
     expect(checklist(brief({ logoType: "pictorial" }), false).some((c) => c.id === "spelling")).toBe(false);
     const prompt = buildReviewPrompt(brief(), [], checks);
     expect(prompt).toContain('EXPECTED TEXT: "Bloom & Co."');

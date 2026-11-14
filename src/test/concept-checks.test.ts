@@ -97,9 +97,9 @@ describe("real AI output", () => {
     expect(failed(cut, 256, 256)).toContain("margin");
   });
 
-  it("blocks only what matters; taste and tiny-size detail are notes", () => {
+  it("blocks only what matters (incl. hairline strokes); taste and tiny-size detail are notes", () => {
     const defs = checklist(normalizeBrief({ brandName: "Amuse Asylum", logoType: "combination" }), true);
-    expect(defs.filter((d) => d.blocking).map((d) => d.id)).toEqual(["background", "margin", "original", "spelling", "extra_text", "type", "flat", "quality"]);
+    expect(defs.filter((d) => d.blocking).map((d) => d.id)).toEqual(["background", "margin", "weight", "original", "spelling", "extra_text", "type", "flat", "quality"]);
     expect(defs.filter((d) => !d.blocking).map((d) => d.id)).toEqual(["clean", "colors", "mono", "small", "brief", "references"]);
   });
 });

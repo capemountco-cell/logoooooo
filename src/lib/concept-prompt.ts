@@ -1,6 +1,7 @@
 // Prompts for generating, reviewing and fixing logo concepts (pure, shared by client and server).
 import { logoType, SHOWS_NAME, type LogoBrief, type ReferenceNote } from "@/lib/brief";
 import { briefHexes } from "@/lib/palette";
+import { planLines, type ConceptPlan } from "@/lib/concept-plan";
 
 export type Provider = "openai" | "grok";
 /** With Grok on: four concepts per round, two from each model, so the set has real variety. */
@@ -73,8 +74,12 @@ function textRules(brief: LogoBrief) {
 const OUTPUT_RULES =
   "OUTPUT: One single logo, centred on a plain pure white (#FFFFFF) background with generous empty margin on every side (at least 12% of the image). Flat vector style: solid fills, crisp clean edges, no gradients unless the brief asks for them, no shadows, glows, textures, 3D, bevels or photo effects. No mockup, scene, paper, device, colour swatches, guides, multiple versions or presentation board.";
 
-const DESIGN_RULES =
-  "DESIGN QUALITY: Simple, distinctive and memorable. It must still read clearly at 32 pixels and in a single colour. Use at most 3 colours unless the brief specifies more. Balanced optical weight, consistent stroke weights and corner treatment across every element. Original: never imitate a famous existing logo.";
+const DESIGN_RULES = [
+  "DESIGN QUALITY: Simple, distinctive and memorable, crafted like the work of a top identity studio. It must still read clearly at 32 pixels, in a single colour, and embroidered on a cap. Balanced optical weight, consistent stroke weights and corner treatment across every element. Original: never imitate a famous existing logo.",
+  "WEIGHT: no hairlines. Every line, ring and letter stroke is sturdy — the thinnest stroke at least about 4% of the logo's height. Lettering is regular to bold weight, never thin or light.",
+  "TYPOGRAPHY: deliberate, optically spaced lettering with a clear hierarchy. In a name of several words the distinctive word leads; generic descriptor words (e.g. Family, Orthodontics, Studio, Co.) are clearly smaller, often uppercase with generous letter-spacing on their own line. Text and symbol form one balanced lockup.",
+  "COLOUR DISCIPLINE: all lettering in ONE colour — never give different words or letters different colours. The symbol may use the main colour; an accent colour at most on one small element. 1–3 colours in total.",
+].join("\n");
 
 /**
  * The colour instruction. A palette with hex values (the user's, or one built by palette.ts) is
@@ -84,17 +89,21 @@ export function paletteLine(colors: string[]) {
   if (!colors.length) return "Colours: choose a fitting, restrained palette (1–2 colours).";
   if (!briefHexes(colors).length) return `Colours: ${colors.join(", ")}.`;
   const role = (c: string) => (/^primary\b/i.test(c) ? " — main colour for the symbol" : /^accent\b/i.test(c) ? " — sparingly, for one detail or highlight" : /^neutral\b/i.test(c) ? " — for the lettering" : "");
-  return `PALETTE (use exactly these flat colours and no others; white is the background): ${colors.map((c) => `${c}${role(c)}`).join("; ")}.`;
+  return `PALETTE (use only these flat colours — 1 to 3 of them, not necessarily all; white is the background): ${colors.map((c) => `${c}${role(c)}`).join("; ")}. All lettering in one of them; never a different colour per word.`;
 }
 
-/** The prompt for one concept. `index` picks its creative lean (0–3). */
-export function buildConceptPrompt(brief: LogoBrief, references: ReferenceNote[], index = 0) {
+/**
+ * The prompt for one concept. With a plan (concept-plan.ts) the concept follows its planned idea;
+ * without one, `index` picks a creative lean (0–3). The client's existing idea (brief.direction)
+ * reaches the drawing only through the plan that refines it, never every concept.
+ */
+export function buildConceptPrompt(brief: LogoBrief, references: ReferenceNote[], index = 0, plan?: ConceptPlan | null) {
   const type = logoType(brief.logoType);
   const facts = [
     brief.industry && `Industry: ${brief.industry}.`,
     brief.audience && `Audience: ${brief.audience}.`,
     brief.personality.length && `Personality: ${brief.personality.join(", ")}.`,
-    brief.symbolIdeas.length && type.id !== "wordmark" && type.id !== "lettermark" && type.id !== "letterform" && `Symbol ideas to explore (pick or merge, keep it simple): ${brief.symbolIdeas.join("; ")}.`,
+    !plan && brief.symbolIdeas.length && type.id !== "wordmark" && type.id !== "lettermark" && type.id !== "letterform" && `Symbol ideas to explore (pick or merge, keep it simple): ${brief.symbolIdeas.join("; ")}.`,
     paletteLine(brief.colors),
     brief.typography && `Lettering direction: ${brief.typography}.`,
     brief.mustHave.length && `Must have: ${brief.mustHave.join("; ")}.`,
@@ -108,11 +117,12 @@ export function buildConceptPrompt(brief: LogoBrief, references: ReferenceNote[]
     : "";
   return [
     `Design an original, professional logo${brief.brandName ? ` for ${JSON.stringify(brief.brandName)}` : ""}. ${brief.summary}`.trim(),
+    brief.story && `ABOUT THE BRAND: ${brief.story}`,
     `LOGO TYPE — ${type.label.toUpperCase()}: ${type.rule}`,
     facts.join("\n"),
     refs,
     ...textRules(brief),
-    `CREATIVE DIRECTION (concept ${index + 1}): ${DIRECTIONS[index % DIRECTIONS.length]} Stay true to the brief's personality.`,
+    plan ? planLines(plan, index) : `CREATIVE DIRECTION (concept ${index + 1}): ${DIRECTIONS[index % DIRECTIONS.length]} Stay true to the brief's personality.`,
     DESIGN_RULES,
     OUTPUT_RULES,
   ]
@@ -131,7 +141,7 @@ export function buildFixPrompt(brief: LogoBrief, issues: string[]) {
 }
 
 export type CheckId =
-  | "background" | "margin" | "clean" | "colors" | "mono" | "small" | "original"
+  | "background" | "margin" | "clean" | "colors" | "mono" | "small" | "weight" | "original"
   | "spelling" | "extra_text" | "type" | "brief" | "references" | "flat" | "quality";
 
 /**
@@ -152,6 +162,7 @@ export function checklist(brief: LogoBrief, hasReferences: boolean): CheckDef[] 
     { id: "clean", label: "Traces to a clean vector", by: "code", blocking: false },
     { id: "colors", label: "Colour count fits the brief", by: "code", blocking: false },
     { id: "mono", label: "Works in one colour", by: "code", blocking: false },
+    { id: "weight", label: "Sturdy strokes, no hairlines", by: "code", blocking: true },
     { id: "small", label: "Readable when small", by: "code", blocking: false },
     hasReferences && { id: "original", label: "Doesn't copy a reference", by: "code", blocking: true },
     hasLetters && { id: "spelling", label: "Text spelled exactly", by: "ai", blocking: true },
@@ -167,7 +178,7 @@ export function checklist(brief: LogoBrief, hasReferences: boolean): CheckDef[] 
 
 export type CheckResult = { id: CheckId; pass: boolean; issue: string };
 
-const AI_CHECK_TEXT: Record<Exclude<CheckId, "background" | "margin" | "clean" | "colors" | "mono" | "small" | "original">, string> = {
+const AI_CHECK_TEXT: Record<Exclude<CheckId, "background" | "margin" | "clean" | "colors" | "mono" | "small" | "weight" | "original">, string> = {
   spelling: "Read every letter in the image left to right. It must match the EXPECTED TEXT exactly (letters, case, count, order). Any missing, extra, swapped, malformed or ambiguous letter fails.",
   extra_text: "There is no text, letter, number, watermark or label beyond the EXPECTED TEXT.",
   type: "The design is clearly the requested LOGO TYPE.",
