@@ -275,6 +275,46 @@ export function useBriefJob(persistKey?: string) {
     setRefStatus((s) => (s === "searching" ? "idle" : s));
   }, []);
 
+  /** Everything this job holds, for "Start over" → Undo. */
+  const snapshot = useCallback((): JobSnapshot => ({ v: 1, phase, brief, references, refs, candidates, provider, rounds, picked: picked.current }), [phase, brief, references, refs, candidates, provider, rounds]);
+
+  /**
+   * Start over: stops all work and empties the job — brief, references, search results and every
+   * round. Autosave then stores the empty job, so a reload starts clean too.
+   */
+  const reset = useCallback(() => {
+    abortExtras();
+    controller.current?.abort();
+    controller.current = null;
+    removed.current = new Set();
+    picked.current = false;
+    samplesRef.current = [];
+    setPhase("idle");
+    setBrief(null);
+    setReferences([]);
+    setRefs([]);
+    setCandidates([]);
+    setProvider(null);
+    setRefStatus("idle");
+    setRounds([]);
+    setError(null);
+    setNotice(null);
+  }, []);
+
+  /** Puts back a job emptied by Start over (Undo); unfinished concepts show as Interrupted. */
+  const restore = useCallback((snap: JobSnapshot) => {
+    const s = restoreSnapshot(snap);
+    if (!s) return;
+    setPhase(s.phase);
+    setBrief(s.brief);
+    setReferences(s.references);
+    setRefs(s.refs);
+    setCandidates(s.candidates);
+    setProvider(s.provider);
+    setRounds(s.rounds);
+    picked.current = s.picked;
+  }, []);
+
   // ---------- one concept at a time: redraw, recreate, add ----------
 
   /** Runs one concept of a round with that round's brief, references, plans and checklist. */
@@ -404,7 +444,7 @@ export function useBriefJob(persistKey?: string) {
   return {
     phase, setPhase, brief, setBrief, references, rounds, error, makeBrief, generate, cancel, ready, restored,
     refs, candidates, provider, refStatus, removeRef, changeRole, useCandidate, addUpload, addLink, findNewRefs, notice,
-    redraw, recreate, addConcept, extraRunning,
+    redraw, recreate, addConcept, extraRunning, snapshot, reset, restore,
     /** The newest round (what batch cards show). */
     concepts: latest?.concepts ?? [],
     checks: latest?.checks ?? [],
