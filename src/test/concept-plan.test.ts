@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { normalizeBrief } from "@/lib/brief";
 import { fallbackPlans, normalizePlan, PLAN_INSTRUCTIONS, planInput, readPlans } from "@/lib/concept-plan";
-import { buildConceptPrompt, paletteLine } from "@/lib/concept-prompt";
+import { buildConceptPrompt, buildReviewPrompt, checklist, paletteLine } from "@/lib/concept-prompt";
 
 const taut = normalizeBrief({
   brandName: "Taut Family Orthodontics",
@@ -58,5 +58,38 @@ describe("concept planning", () => {
   it("never asks for a different colour per word", () => {
     expect(paletteLine(taut.colors)).toMatch(/1 to 3 of them, not necessarily all/);
     expect(paletteLine(taut.colors)).toMatch(/never a different colour per word/);
+  });
+});
+
+describe("bold, illustrative brands (the ChatGPT AlJazeera badge)", () => {
+  const aljazeera = normalizeBrief({
+    brandName: "AlJazeera",
+    tagline: "Lebanese Charcoal Chicken",
+    logoType: "emblem",
+    alternativeTypes: ["combination", "mascot"],
+    industry: "Lebanese charcoal chicken restaurant",
+    personality: ["bold", "warm", "fun"],
+    summary: "A bold signage-style badge for a charcoal chicken restaurant.",
+  });
+
+  it("lets food and hospitality brands be bold, illustrative and literal — not forced minimal", () => {
+    expect(PLAN_INSTRUCTIONS).toMatch(/bold emblem or badge \(name, slogan and an illustration/);
+    expect(PLAN_INSTRUCTIONS).toMatch(/the chicken, the flame, the dish — is often exactly right/);
+    expect(PLAN_INSTRUCTIONS).toMatch(/up to 5 for a bold illustrative one/);
+    const p = buildConceptPrompt(aljazeera, [], 0);
+    expect(p).toMatch(/food, hospitality, street, sports and craft brands can be bold, illustrative/);
+    expect(p).toMatch(/up to 5 flat colours/);
+    expect(p).toContain('TAGLINE: Add the tagline "Lebanese Charcoal Chicken"');
+  });
+
+  it("follows the client's references when they give some", () => {
+    expect(PLAN_INSTRUCTIONS).toMatch(/REFERENCES FIRST/);
+    expect(planInput(aljazeera, [{ role: "style", description: "chunky hand-lettered brush wordmark" }], 3)).toContain("REFERENCE NOTES (each only for its role): style: chunky hand-lettered brush wordmark");
+  });
+
+  it("never fails a badge as the wrong type when the brief accepts it as an alternative", () => {
+    const review = buildReviewPrompt(normalizeBrief({ ...aljazeera, logoType: "combination", alternativeTypes: ["emblem", "mascot"] }), [], checklist(aljazeera, false));
+    expect(review).toContain("(accepted alternatives: Emblem, Mascot)");
+    expect(review).toContain("requested LOGO TYPE or one of its accepted alternatives");
   });
 });

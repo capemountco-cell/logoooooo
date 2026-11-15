@@ -75,10 +75,10 @@ const OUTPUT_RULES =
   "OUTPUT: One single logo, centred on a plain pure white (#FFFFFF) background with generous empty margin on every side (at least 12% of the image). Flat vector style: solid fills, crisp clean edges, no gradients unless the brief asks for them, no shadows, glows, textures, 3D, bevels or photo effects. No mockup, scene, paper, device, colour swatches, guides, multiple versions or presentation board.";
 
 const DESIGN_RULES = [
-  "DESIGN QUALITY: Simple, distinctive and memorable, crafted like the work of a top identity studio. It must still read clearly at 32 pixels, in a single colour, and embroidered on a cap. Balanced optical weight, consistent stroke weights and corner treatment across every element. Original: never imitate a famous existing logo.",
+  "DESIGN QUALITY: Distinctive and memorable, crafted like the work of a top identity studio. Match the style and level of detail to the brand, its category and its references: corporate, medical, tech and professional brands read best clean and minimal; food, hospitality, street, sports and craft brands can be bold, illustrative and full of character (e.g. a hand-lettered badge with an appetising illustration). Either way: confident drawing, balanced optical weight, consistent strokes and corners, still clear when small and in one colour. Original: never imitate a famous existing logo.",
   "WEIGHT: no hairlines. Every line, ring and letter stroke is sturdy — the thinnest stroke at least about 4% of the logo's height. Lettering is regular to bold weight, never thin or light.",
   "TYPOGRAPHY: deliberate, optically spaced lettering with a clear hierarchy. In a name of several words the distinctive word leads; generic descriptor words (e.g. Family, Orthodontics, Studio, Co.) are clearly smaller, often uppercase with generous letter-spacing on their own line. Text and symbol form one balanced lockup.",
-  "COLOUR DISCIPLINE: all lettering in ONE colour — never give different words or letters different colours. The symbol may use the main colour; an accent colour at most on one small element. 1–3 colours in total.",
+  "COLOUR DISCIPLINE: all lettering in ONE colour — never give different words or letters different colours. The symbol may use the main colour; accents sparingly. 1–3 colours for a minimal style; up to 5 flat colours when the brief, the references or the category call for a rich, illustrative look.",
 ].join("\n");
 
 /**
@@ -217,7 +217,7 @@ export type CheckResult = { id: CheckId; pass: boolean; issue: string };
 const AI_CHECK_TEXT: Record<Exclude<CheckId, "background" | "margin" | "clean" | "colors" | "mono" | "small" | "weight" | "original">, string> = {
   spelling: "Read every letter in the image left to right. It must match the EXPECTED TEXT exactly (letters, case, count, order). Any missing, extra, swapped, malformed or ambiguous letter fails.",
   extra_text: "There is no text, letter, number, watermark or label beyond the EXPECTED TEXT.",
-  type: "The design is clearly the requested LOGO TYPE.",
+  type: "The design is clearly the requested LOGO TYPE or one of its accepted alternatives.",
   brief: "It fits the brief's personality, colours, must-haves and avoids.",
   references: "Each reference role is respected and nothing is copied outright from a reference.",
   flat: "It is a single flat logo on a plain white background: not a photo, 3D render, mockup, scene, sketch sheet or multiple versions.",
@@ -232,7 +232,7 @@ export function buildReviewPrompt(brief: LogoBrief, references: ReferenceNote[],
   const ai = checks.filter((c) => c.by === "ai");
   return [
     "You are a strict senior brand designer doing quality control on a generated logo before a client sees it. Be exacting: if in doubt, fail the check and say precisely what to change.",
-    `LOGO TYPE: ${logoType(brief.logoType).label} — ${logoType(brief.logoType).rule}`,
+    `LOGO TYPE: ${logoType(brief.logoType).label} — ${logoType(brief.logoType).rule}${brief.alternativeTypes.length ? ` (accepted alternatives: ${brief.alternativeTypes.map((t) => logoType(t).label).join(", ")})` : ""}`,
     `EXPECTED TEXT: ${expected.length ? expected.map((t) => JSON.stringify(t)).join(" and ") : "none — the logo must contain no text"}`,
     `BRIEF: ${brief.summary} Personality: ${brief.personality.join(", ") || "n/a"}. Colours: ${brief.colors.join(", ") || "any restrained palette"}. Must have: ${brief.mustHave.join("; ") || "n/a"}. Avoid: ${brief.avoid.join("; ") || "n/a"}.`,
     references.length ? `REFERENCE ROLES: ${references.map((r) => `${r.role}: ${r.description}`).join(" | ")}` : "",
