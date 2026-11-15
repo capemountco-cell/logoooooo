@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { normalizeBrief } from "@/lib/brief";
-import { isAllowedImageUrl, parseBrave, parseOpenverse, readPicks, referenceQueries } from "@/lib/reference-search";
+import { isAllowedImageUrl, parseBrave, parseOpenverse, readPicks, readSearchPlan, referenceQueries, SEARCH_PLAN_INSTRUCTIONS } from "@/lib/reference-search";
 import { Route as ReferencesRoute } from "@/routes/api/references";
 import { Route as NoteRoute } from "@/routes/api/reference-note";
 
@@ -45,20 +45,27 @@ describe("provider results", () => {
 // A tiny valid PNG served as every thumbnail.
 const PNG = Uint8Array.from(atob("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=="), (c) => c.charCodeAt(0));
 let calls: string[] = [];
-function mockNet(opts: { braveStatus?: number } = {}) {
+let pickInputs: unknown[] = [];
+function mockNet(opts: { braveStatus?: number; plan?: unknown } = {}) {
   vi.stubGlobal("fetch", vi.fn(async (url: string, init?: RequestInit) => {
     calls.push(url);
     if (url.startsWith("https://api.search.brave.com/")) {
       if (opts.braveStatus) return new Response("no", { status: opts.braveStatus });
-      return Response.json({ results: Array.from({ length: 4 }, (_, i) => ({ title: `logo ${i}`, url: `https://pinterest.com/pin/${i}`, thumbnail: { src: `https://imgs.search.brave.com/t${i}` } })) });
+      const q = new URL(url).searchParams.get("q") ?? "";
+      return Response.json({ results: Array.from({ length: 4 }, (_, i) => ({ title: `logo ${i}`, url: `https://pinterest.com/pin/${i}`, thumbnail: { src: `https://imgs.search.brave.com/${encodeURIComponent(q)}/t${i}` } })) });
     }
     if (url.startsWith("https://api.openverse.org/v1/images/?")) {
       return Response.json({ results: Array.from({ length: 3 }, (_, i) => ({ id: `id${i}`, title: `cc ${i}`, thumbnail: `https://api.openverse.org/v1/images/id${i}/thumb/`, foreign_landing_url: `https://flickr.com/${i}` })) });
     }
     if (url.startsWith("https://imgs.search.brave.com/") || url.includes("/thumb/")) return new Response(PNG, { headers: { "Content-Type": "image/png" } });
     if (url === "https://api.openai.com/v1/responses") {
-      const body = JSON.parse(String(init?.body)) as { text?: unknown };
-      const text = body.text ? JSON.stringify({ picks: [{ role: "style", index: 0 }, { role: "concept", index: 1 }, { role: "typography", index: 4 }] }) : "geometric, generous negative space";
+      const body = JSON.parse(String(init?.body)) as { text?: { format?: { name?: string } }; instructions?: string; input?: unknown };
+      const name = body.text?.format?.name;
+      if (name === "reference_picks") pickInputs.push(body);
+      const text =
+        name === "reference_searches" ? JSON.stringify(opts.plan ?? { queries: [] })
+          : name ? JSON.stringify({ picks: [{ role: "style", index: 0 }, { role: "concept", index: 1 }, { role: "typography", index: 4 }] })
+            : "geometric, generous negative space";
       return Response.json({ output: [{ type: "message", content: [{ type: "output_text", text }] }] });
     }
     return new Response("unexpected", { status: 500 });
@@ -68,6 +75,7 @@ const json = (body: unknown) => new Request("http://localhost/api/references", {
 
 beforeEach(() => {
   calls = [];
+  pickInputs = [];
   process.env["OPENAI_API_KEY"] = "test";
 });
 afterEach(() => {
@@ -126,5 +134,36 @@ describe("/api/reference-note", () => {
     bad.append("url", "https://169.254.169.254/latest/meta-data");
     expect((await post(NoteRoute)({ request: new Request("http://localhost/api/reference-note", { method: "POST", body: bad }) })).status).toBe(400);
     expect(calls.some((c) => c.includes("169.254"))).toBe(false);
+  });
+});
+
+describe("searching like a designer", () => {
+  it("plans visual-language searches that cover every role, and drops unusable plans", () => {
+    const plan = readSearchPlan({ queries: [{ query: "chunky hand-lettered brush wordmark dribbble", roles: ["typography"] }, { query: "bold retro badge emblem logo behance", roles: ["style", "concept"] }, { query: "x", roles: ["style"] }] }, ["style", "concept", "typography"]);
+    expect(plan).toEqual([{ query: "chunky hand-lettered brush wordmark dribbble", roles: ["typography"] }, { query: "bold retro badge emblem logo behance", roles: ["style", "concept"] }]);
+    expect(readSearchPlan({ queries: [{ query: "bold retro badge logo", roles: ["style"] }] }, ["style", "typography"])).toEqual([]);
+    expect(SEARCH_PLAN_INSTRUCTIONS).toMatch(/not the literal subject/);
+    expect(SEARCH_PLAN_INSTRUCTIONS).toMatch(/dribbble/);
+  });
+
+  it("lets the picker build a small moodboard: two style references, one for each other role", () => {
+    const picks = readPicks({ picks: [{ role: "style", index: 0 }, { role: "style", index: 1 }, { role: "style", index: 2 }, { role: "typography", index: 3 }] }, ["style", "typography"], 5);
+    expect(picks).toEqual([{ role: "style", index: 0 }, { role: "style", index: 1 }, { role: "typography", index: 3 }]);
+  });
+
+  it("runs the planned searches on Brave and offers the designer's saved references to the picker first", async () => {
+    process.env["BRAVE_API_KEY"] = "k";
+    mockNet({ plan: { queries: [{ query: "hand-lettered brush wordmark dribbble", roles: ["typography"] }, { query: "warm rustic bakery badge behance", roles: ["style", "concept"] }] } });
+    const saved = { id: "fav1", image: "data:image/png;base64,iVBORw0KGgo=", role: "style", note: "my favourite badge" };
+    const out = (await (await post(ReferencesRoute)({ request: json({ brief: bakery, library: [saved, { id: "bad", image: "https://evil.example/x.png", role: "style", note: "" }] }) })).json()) as { references: { role: string; candidate?: unknown }[] };
+    const searched = calls.filter((c) => c.startsWith("https://api.search.brave.com/")).map((c) => new URL(c).searchParams.get("q"));
+    expect(searched).toEqual(["hand-lettered brush wordmark dribbble", "warm rustic bakery badge behance"]);
+    const pick = JSON.stringify(pickInputs[0]);
+    expect(pick).toContain("THE DESIGNER'S OWN SAVED REFERENCES");
+    expect(pick).toContain("JUDGE LIKE A DESIGNER");
+    expect(pick).not.toContain("evil.example");
+    // Index 0 is the saved reference: it comes back without a search candidate.
+    expect(out.references[0]).toMatchObject({ role: "style" });
+    expect(out.references[0]!.candidate).toBeUndefined();
   });
 });

@@ -189,6 +189,8 @@ export type RefItem = {
   candidate?: Candidate | undefined;
   /** The web page this reference was taken from, when it came from a link. */
   link?: string | undefined;
+  /** Picked from the designer's own saved references ("My references"). */
+  fromLibrary?: boolean | undefined;
 };
 
 async function signatureOf(image: string) {
@@ -200,17 +202,19 @@ export type FoundRefs = { provider: SearchProvider; refs: RefItem[]; candidates:
 
 /** Asks the server to search, pick and describe references for the brief. */
 export async function findAutoRefs(brief: LogoBrief, opts: { exclude?: string[]; roles?: ReferenceRole[] }, signal: AbortSignal): Promise<FoundRefs> {
+  // The designer's saved references go along (small), so the picker can choose their taste first.
+  const library = (await import("@/lib/library").then((m) => m.loadLibrary().then((l) => l.slice(0, m.LIBRARY_PER_SEARCH))).catch(() => []));
   const res = await fetch("/api/references", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ brief, ...opts }),
+    body: JSON.stringify({ brief, ...opts, library }),
     signal,
   });
   if (!res.ok) throw await failure(res, "Couldn't find references.");
   const json = (await res.json()) as { provider: SearchProvider; references: AutoReference[]; candidates: Candidate[]; samples?: string[] };
   const refs = await Promise.all(
     json.references.map(async (r): Promise<RefItem> => ({
-      id: crypto.randomUUID(), role: r.role, description: r.description, image: r.image, signature: await signatureOf(r.image), auto: true, candidate: r.candidate,
+      id: crypto.randomUUID(), role: r.role, description: r.description, image: r.image, signature: await signatureOf(r.image), auto: true, candidate: r.candidate, fromLibrary: !r.candidate,
     })),
   );
   return { provider: json.provider, refs, candidates: json.candidates, samples: json.samples ?? [] };
