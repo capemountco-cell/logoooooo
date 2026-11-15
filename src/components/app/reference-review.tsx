@@ -1,5 +1,6 @@
-import { useState } from "react";
-import { ExternalLink, ImagePlus, Link2, Loader2, RefreshCw, Sparkles, X } from "lucide-react";
+import { useEffect, useState } from "react";
+import { loadLibrary, onLibraryChange, removeFromLibrary, saveToLibrary } from "@/lib/library";
+import { ExternalLink, Heart, ImagePlus, Link2, Loader2, RefreshCw, Sparkles, X } from "lucide-react";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { REFERENCE_ROLES, type ReferenceRole } from "@/lib/brief";
 import type { RefItem } from "@/lib/concept-client";
@@ -43,6 +44,15 @@ export function ReferenceReview({
   busy: boolean;
 }) {
   const [working, setWorking] = useState<string | null>(null);
+  // "My references": saved on this device; future searches offer them to the picker first.
+  const [saved, setSaved] = useState<Set<string>>(new Set());
+  useEffect(() => {
+    void loadLibrary().then((l) => setSaved(new Set(l.map((x) => x.id))));
+    return onLibraryChange((l) => setSaved(new Set(l.map((x) => x.id))));
+  }, []);
+  const libKey = (r: RefItem) => r.candidate?.id ?? r.id;
+  const toggleSaved = (r: RefItem) =>
+    void run(`save:${r.id}`, () => (saved.has(libKey(r)) ? removeFromLibrary(libKey(r)) : saveToLibrary({ key: libKey(r), image: r.image, role: r.role, description: r.description })));
   const [error, setError] = useState("");
   const [swapRole, setSwapRole] = useState<ReferenceRole>("style");
   const [link, setLink] = useState("");
@@ -102,14 +112,19 @@ export function ReferenceReview({
                       <option key={x.id} value={x.id}>{x.label}</option>
                     ))}
                   </select>
+                  {!r.fromLibrary && (
+                    <button type="button" onClick={() => toggleSaved(r)} disabled={Boolean(working)} aria-pressed={saved.has(libKey(r))} aria-label={saved.has(libKey(r)) ? "Remove from My references" : "Save to My references"} title={saved.has(libKey(r)) ? "Saved to My references" : "Save to My references — future searches use your taste first"} className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground hover:text-foreground">
+                      <Heart className={cn("h-4 w-4", saved.has(libKey(r)) && "fill-destructive text-destructive")} aria-hidden="true" />
+                    </button>
+                  )}
                   <button type="button" onClick={() => onRemove(r.id)} disabled={Boolean(working)} aria-label={`Remove ${roleLabel(r.role)} reference`} className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground hover:text-foreground">
                     {working === r.id ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <X className="h-4 w-4" aria-hidden="true" />}
                   </button>
                 </div>
                 <p className="line-clamp-3 text-[12px] leading-snug text-subtle">{r.description}</p>
                 <span className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
-                  {r.auto ? <Sparkles className="h-3 w-3" aria-hidden="true" /> : <ImagePlus className="h-3 w-3" aria-hidden="true" />}
-                  {r.auto ? "Picked by AI" : "Added by you"}
+                  {r.fromLibrary ? <Heart className="h-3 w-3" aria-hidden="true" /> : r.auto ? <Sparkles className="h-3 w-3" aria-hidden="true" /> : <ImagePlus className="h-3 w-3" aria-hidden="true" />}
+                  {r.fromLibrary ? "From My references" : r.auto ? "Picked by AI" : "Added by you"}
                   {r.link && (
                     <a href={r.link} target="_blank" rel="noopener noreferrer nofollow" className="inline-flex items-center gap-0.5 underline-offset-2 hover:text-foreground hover:underline">
                       · {host(r.link)}

@@ -1,6 +1,6 @@
 // Automatic reference images for a brief (pure, shared): search queries, provider result parsing,
 // the image-host allowlist, and the instructions for the model that picks the best references.
-// Picked references only ever reach the image models as role-limited text (see brief.ts).
+// Picked references reach the image model as role-limited text and, when allowed, as pictures (see brief.ts).
 import { logoType, type LogoBrief, type ReferenceRole } from "@/lib/brief";
 import { requiredText } from "@/lib/concept-prompt";
 
@@ -16,7 +16,7 @@ export type Candidate = {
   title: string;
   /** Which search produced it. */
   query: string;
-  provider: SearchProvider;
+  provider: SearchProvider | "library";
 };
 
 /** A reference in use: the role it serves, its role-limited description and its picture. */
@@ -25,8 +25,12 @@ export type AutoReference = {
   description: string;
   /** Data URL of the thumbnail (for the review panel and the copy check). */
   image: string;
-  candidate: Candidate;
+  /** The search result it came from (none for the designer's own saved references). */
+  candidate?: Candidate;
 };
+
+/** A reference the designer saved to "My references" (stored on the device, sent as a small image). */
+export type LibraryItem = { id: string; image: string; role: ReferenceRole; note: string };
 
 const TYPE_QUERY: Record<string, string> = {
   combination: "logo design",
@@ -44,6 +48,68 @@ const clean = (s: string) => s.replace(/[^\p{L}\p{N}\s&'-]/gu, " ").replace(/\s+
 const firstWords = (s: string, n: number) => clean(s).split(" ").slice(0, n).join(" ");
 
 export type ReferenceQuery = { query: string; roles: ReferenceRole[] };
+
+// ---------- searching like a designer ----------
+
+/**
+ * Instructions for the AI that writes the searches. A designer doesn't search the brief's literal
+ * subject ("chicken restaurant logo" returns other chicken logos, mostly amateur contest entries):
+ * they search the visual language they want, look at best-in-class work from neighbouring
+ * categories, and use curated galleries.
+ */
+export const SEARCH_PLAN_INSTRUCTIONS = [
+  "You are a senior brand designer gathering reference logos for a new identity. Write 3 or 4 image searches (Brave Image Search) that will surface excellent, professional reference work.",
+  "SEARCH LIKE A DESIGNER: describe the visual language wanted — lettering style, shape language, era, construction, rendering (e.g. \"chunky hand-lettered brush wordmark\", \"bold retro badge emblem logo\", \"geometric monogram logo grid construction\") — not the literal subject. Avoid the category's clichés and literal objects unless the concept truly needs them. One search may look at best-in-class brands from a neighbouring category with the same feel.",
+  "QUALITY SOURCES: add \"dribbble\" or \"behance\" to most searches so results come from curated design galleries rather than contest entries or clip art.",
+  "ROLES: each search serves one or more of: style (overall look), typography (lettering, only when the logo has text), concept (the kind of idea). Cover every role you are asked for. 3–7 words per search, no quotes, no brand names of the client.",
+].join("\n");
+
+export const SEARCH_PLAN_SCHEMA = {
+  type: "object",
+  additionalProperties: false,
+  properties: {
+    queries: {
+      type: "array",
+      items: {
+        type: "object",
+        additionalProperties: false,
+        properties: { query: { type: "string" }, roles: { type: "array", items: { type: "string", enum: ["style", "concept", "typography"] } } },
+        required: ["query", "roles"],
+      },
+    },
+  },
+  required: ["queries"],
+} as const;
+
+export function searchPlanInput(brief: LogoBrief, roles: ReferenceRole[]) {
+  return [
+    `ROLES TO COVER: ${roles.join(", ")}`,
+    `LOGO TYPE: ${logoType(brief.logoType).label}`,
+    brief.industry && `INDUSTRY: ${brief.industry}`,
+    brief.personality.length && `PERSONALITY: ${brief.personality.join(", ")}`,
+    brief.typography && `LETTERING NOTES: ${brief.typography}`,
+    brief.story && `STORY: ${brief.story}`,
+    brief.summary && `SUMMARY: ${brief.summary}`,
+    brief.avoid.length && `AVOID: ${brief.avoid.join("; ")}`,
+  ]
+    .filter(Boolean)
+    .join("\n");
+}
+
+/** The planned searches → at most 4 clean queries limited to the asked roles; [] if unusable. */
+export function readSearchPlan(raw: unknown, roles: ReferenceRole[]): ReferenceQuery[] {
+  const list = (raw as { queries?: unknown })?.queries;
+  if (!Array.isArray(list)) return [];
+  const out: ReferenceQuery[] = [];
+  for (const q of list as { query?: unknown; roles?: unknown }[]) {
+    const query = clean(typeof q.query === "string" ? q.query : "").split(" ").slice(0, 9).join(" ");
+    const r = (Array.isArray(q.roles) ? q.roles : []).filter((x): x is ReferenceRole => roles.includes(x as ReferenceRole));
+    if (query.length >= 4 && r.length && !out.some((o) => o.query === query)) out.push({ query, roles: [...new Set(r)] });
+    if (out.length >= 4) break;
+  }
+  // Every asked role must be covered by some search; otherwise the plan is not usable.
+  return roles.every((role) => out.some((q) => q.roles.includes(role))) ? out : [];
+}
 
 /**
  * Up to two searches per brief (each costs one request): a visual one for style and concept,
@@ -103,19 +169,20 @@ export function parseOpenverse(json: unknown, query: string): Candidate[] {
 /** The picker sees each search's top results (low detail, so it is cheap). */
 export const PICK_PER_QUERY = 8;
 
-export function pickInstructions(brief: LogoBrief, groups: { roles: ReferenceRole[]; count: number }[]) {
+export function pickInstructions(brief: LogoBrief, groups: { roles: ReferenceRole[]; count: number; library?: boolean }[]) {
   let offset = 0;
   const lines = groups.map((g) => {
     const range = `images ${offset}–${offset + g.count - 1}`;
     offset += g.count;
-    return `- ${range}: candidates for ${g.roles.join(" and ")}`;
+    return g.library ? `- ${range}: THE DESIGNER'S OWN SAVED REFERENCES (their taste) — prefer these for any role they fit` : `- ${range}: candidates for ${g.roles.join(" and ")}`;
   });
   return [
-    "You are a senior brand designer choosing reference images for a new, original logo. Pick the most useful image for each requested role, by index.",
+    "You are the art director of a top identity studio choosing references for a new, original logo — a small moodboard. Pick by index: up to 2 images for style, and 1 each for the other requested roles.",
     `BRIEF: ${brief.summary} Type: ${logoType(brief.logoType).label}. Personality: ${brief.personality.join(", ") || "n/a"}.`,
     `The images are numbered from 0 in the order given:\n${lines.join("\n")}`,
-    "Good references are clean, professional logo designs (or lettering for typography) whose quality matches the role. Reject photos, product mockups, website or app screenshots, stock watermarks, collages and sheets of many logos, low-quality clip art, and anything with offensive content.",
-    "Pick a different image for each role. If no image is good enough for a role, use index -1 for it.",
+    "JUDGE LIKE A DESIGNER: pick work you would pin on a studio moodboard — distinctive, confidently drawn, well balanced and well spaced, with craft in the details (custom lettering, considered shapes), the kind featured on curated galleries. Prefer it over generic, amateur or contest-entry work, templates, clip art and literal category clichés. The image must clearly show the quality its role needs (lettering for typography; overall look for style; the kind of idea for concept).",
+    "Reject photos, product mockups, website or app screenshots, stock watermarks, collages and sheets of many logos, and anything offensive.",
+    "Each image may serve only one role. If no image is good enough for a role, leave that role out.",
   ].join("\n\n");
 }
 
@@ -137,6 +204,9 @@ export const PICK_SCHEMA = {
 } as const;
 
 /** Validates the picker's answer: known roles, in-range, distinct images; one per role. */
+/** At most two style references (a small moodboard), one for every other role. */
+export const PICK_LIMIT: Partial<Record<ReferenceRole, number>> = { style: 2 };
+
 export function readPicks(raw: unknown, roles: ReferenceRole[], total: number): { role: ReferenceRole; index: number }[] {
   const picks = (raw as { picks?: unknown })?.picks;
   const used = new Set<number>();
@@ -145,7 +215,7 @@ export function readPicks(raw: unknown, roles: ReferenceRole[], total: number): 
   for (const p of picks as { role?: unknown; index?: unknown }[]) {
     const role = p.role as ReferenceRole;
     const index = typeof p.index === "number" ? Math.trunc(p.index) : -1;
-    if (!roles.includes(role) || out.some((o) => o.role === role) || index < 0 || index >= total || used.has(index)) continue;
+    if (!roles.includes(role) || out.filter((o) => o.role === role).length >= (PICK_LIMIT[role] ?? 1) || index < 0 || index >= total || used.has(index)) continue;
     used.add(index);
     out.push({ role, index });
   }

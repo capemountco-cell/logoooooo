@@ -47,7 +47,12 @@ async function run<T>(mode: IDBTransactionMode, fn: (s: IDBObjectStore) => IDBRe
 export const loadSaved = <T>(key: string) => run<T>("readonly", (s) => s.get(key) as IDBRequest<T>);
 export const saveSaved = (key: string, value: unknown) => run("readwrite", (s) => { s.put(value, key); });
 export const removeSaved = (key: string) => run("readwrite", (s) => { s.delete(key); });
-export const clearSaved = () => run("readwrite", (s) => { s.clear(); });
+/** Clears saved work; "My references" (key "library", library.ts) is kept — it is the designer's taste, not a job. */
+export const clearSaved = () =>
+  run("readwrite", (s) => {
+    const keys = s.getAllKeys();
+    keys.onsuccess = () => keys.result.forEach((k) => { if (k !== "library") s.delete(k); });
+  });
 
 /** Saves at most every `ms` per key, keeping only the latest value (cheap during streaming). */
 const timers = new Map<string, ReturnType<typeof setTimeout>>();
