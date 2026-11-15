@@ -8,6 +8,7 @@
 
 use std::path::{Path, PathBuf};
 
+use tauri::menu::{AboutMetadata, MenuBuilder, MenuItemBuilder, SubmenuBuilder};
 use tauri::webview::{DownloadEvent, NewWindowResponse};
 use tauri::window::Color;
 use tauri::{Manager, WebviewUrl, WebviewWindowBuilder};
@@ -18,6 +19,32 @@ pub const APP_HOST: &str = "logoooooo.lovable.app";
 /// Appended to the user agent so the web app can tell it runs inside the Mac app
 /// (src/lib/desktop.ts) and leave room for the traffic lights.
 const USER_AGENT: &str = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15 LOGOODesktop/0.1";
+
+/// The page event the web app listens for to run Start over (src/lib/desktop.ts).
+pub const START_OVER_EVENT: &str = "logoo:start-over";
+
+/// The Mac menu bar: the standard app, Edit (so copy/paste work in text fields) and Window menus,
+/// plus File → Start Over and View → Reload, which act on the LOGOO page.
+fn build_menu(app: &tauri::App) -> tauri::Result<tauri::menu::Menu<tauri::Wry>> {
+    let start_over = MenuItemBuilder::with_id("start-over", "Start Over").accelerator("CmdOrCtrl+Shift+Backspace").build(app)?;
+    let reload = MenuItemBuilder::with_id("reload", "Reload").accelerator("CmdOrCtrl+R").build(app)?;
+    let app_menu = SubmenuBuilder::new(app, "LOGOO")
+        .about(Some(AboutMetadata::default()))
+        .separator()
+        .services()
+        .separator()
+        .hide()
+        .hide_others()
+        .show_all()
+        .separator()
+        .quit()
+        .build()?;
+    let file = SubmenuBuilder::new(app, "File").item(&start_over).separator().close_window().build()?;
+    let edit = SubmenuBuilder::new(app, "Edit").undo().redo().separator().cut().copy().paste().select_all().build()?;
+    let view = SubmenuBuilder::new(app, "View").item(&reload).separator().fullscreen().build()?;
+    let window = SubmenuBuilder::new(app, "Window").minimize().maximize().build()?;
+    MenuBuilder::new(app).items(&[&app_menu, &file, &edit, &view, &window]).build()
+}
 
 /// Whether the window may show this address: the start page, LOGOO itself, or in-page data.
 fn allowed(url: &tauri::Url) -> bool {
@@ -63,6 +90,7 @@ fn unique_path(dir: &Path, name: &str) -> PathBuf {
 pub fn run() {
     tauri::Builder::default()
         .setup(|app| {
+            app.set_menu(build_menu(app)?)?;
             let downloads = app.path().download_dir().ok();
             let builder = WebviewWindowBuilder::new(app, "main", WebviewUrl::App("index.html".into()))
                 .title("LOGOO")
@@ -108,6 +136,14 @@ pub fn run() {
                 .traffic_light_position(tauri::Position::Logical(tauri::LogicalPosition::new(18.0, 14.0)));
             builder.build()?;
             Ok(())
+        })
+        .on_menu_event(|app, event| {
+            let Some(window) = app.get_webview_window("main") else { return };
+            if event.id() == "start-over" {
+                let _ = window.eval(format!("window.dispatchEvent(new Event({START_OVER_EVENT:?}))"));
+            } else if event.id() == "reload" {
+                let _ = window.eval("location.reload()");
+            }
         })
         .run(tauri::generate_context!())
         .expect("error while running LOGOO");

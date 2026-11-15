@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { START_OVER_EVENT } from "@/lib/desktop";
 import { loadSaved, saveSoon } from "@/lib/persist";
 import { ArrowLeft, Eraser, Images, Pencil, Plus, RotateCcw, Square, Undo2 } from "lucide-react";
 import type { JobSnapshot } from "@/lib/persist";
@@ -64,6 +65,14 @@ export function CreateLogo({ onOpen, active = true }: { onOpen: (c: ConceptState
     setRefs(undo.refs);
     setUndo(null);
   }
+  // The Mac app's menu (File → Start Over, ⌘⇧⌫) runs the same thing.
+  const startOverRef = useRef(startOver);
+  startOverRef.current = startOver;
+  useEffect(() => {
+    const run = () => startOverRef.current();
+    window.addEventListener(START_OVER_EVENT, run);
+    return () => window.removeEventListener(START_OVER_EVENT, run);
+  }, []);
   const startOverBtn = (
     <Btn variant="ghost" onClick={startOver} disabled={!canStartOver} title="Start over: clear the brief, references and all concepts">
       <Eraser className="h-3.5 w-3.5" aria-hidden="true" />

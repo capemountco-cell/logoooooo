@@ -11,3 +11,6 @@ export function isDesktopApp(ua: string = typeof navigator === "undefined" ? "" 
 export function initDesktop() {
   if (typeof document !== "undefined" && isDesktopApp()) document.documentElement.classList.add("desktop-app");
 }
+
+/** Fired by the Mac app's File → Start Over menu item (src-tauri/src/lib.rs START_OVER_EVENT). */
+export const START_OVER_EVENT = "logoo:start-over";

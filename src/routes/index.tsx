@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { initDesktop } from "@/lib/desktop";
+import { initDesktop, START_OVER_EVENT } from "@/lib/desktop";
 import { AppHeader, type View } from "@/components/app/app-header";
 import { ResultWorkspace } from "@/components/app/result-workspace";
 import { BriefBatch } from "@/components/brief-batch";
@@ -38,6 +38,12 @@ function Index() {
   const [colorBusy, setColorBusy] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   useEffect(initDesktop, []);
+  // The Mac app's File → Start Over brings Create to the front, where it clears the brief.
+  useEffect(() => {
+    const show = () => { setOpened(null); setView("create"); };
+    window.addEventListener(START_OVER_EVENT, show);
+    return () => window.removeEventListener(START_OVER_EVENT, show);
+  }, []);
   const [batchRunning, setBatchRunning] = useState(0);
   // Sections by keyboard, as in a Mac app: ⌘1 Create, ⌘2 Batch, ⌘3 Import, ⌘, Settings.
   useShortcuts([
