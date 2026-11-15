@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { loadSaved, saveSoon } from "@/lib/persist";
-import { ArrowLeft, Images, Pencil, Plus, RotateCcw, Square } from "lucide-react";
+import { ArrowLeft, Eraser, Images, Pencil, Plus, RotateCcw, Square, Undo2 } from "lucide-react";
+import type { JobSnapshot } from "@/lib/persist";
 import { BriefComposer } from "@/components/app/brief-composer";
 import { BriefCard } from "@/components/app/brief-card";
 import { ConceptDetail, ConceptTile } from "@/components/app/concept-grid";
@@ -36,6 +37,49 @@ export function CreateLogo({ onOpen, active = true }: { onOpen: (c: ConceptState
   const [reviewing, setReviewing] = useState(false);
   const [sel, setSel] = useState<Sel | null>(null);
   const [revealed, setRevealed] = useState<Set<string>>(() => new Set());
+
+  // Start over: one tap clears the brief text, references, the brief and every round (and the
+  // autosaved copy, which saves the empty state). Undo stays available for a few seconds.
+  const [undo, setUndo] = useState<{ snap: JobSnapshot; notes: string; refs: PreparedRef[] } | null>(null);
+  useEffect(() => {
+    if (!undo) return;
+    const t = setTimeout(() => setUndo(null), 10_000);
+    return () => clearTimeout(t);
+  }, [undo]);
+  const canStartOver = Boolean(notes.trim() || refs.length || job.brief || job.rounds.length);
+  function startOver() {
+    if (!canStartOver) return;
+    setUndo({ snap: job.snapshot(), notes, refs });
+    job.reset();
+    setNotes("");
+    setRefs([]);
+    setSel(null);
+    setRevealed(new Set());
+    setReviewing(false);
+  }
+  function undoStartOver() {
+    if (!undo) return;
+    job.restore(undo.snap);
+    setNotes(undo.notes);
+    setRefs(undo.refs);
+    setUndo(null);
+  }
+  const startOverBtn = (
+    <Btn variant="ghost" onClick={startOver} disabled={!canStartOver} title="Start over: clear the brief, references and all concepts">
+      <Eraser className="h-3.5 w-3.5" aria-hidden="true" />
+      Start over
+    </Btn>
+  );
+  const undoBar = undo ? (
+    <div role="status" className="mx-4 mt-1 flex items-center gap-3 rounded-lg border border-border bg-card px-3 py-2 text-[13px] sm:mx-6">
+      <span className="text-subtle">Cleared — brief, references and concepts.</span>
+      <span className="flex-1" />
+      <Btn onClick={undoStartOver}>
+        <Undo2 className="h-3.5 w-3.5" aria-hidden="true" />
+        Undo
+      </Btn>
+    </div>
+  ) : null;
   const studio = job.rounds.length > 0 && (job.phase === "generating" || job.phase === "done");
   const all = job.rounds.flatMap((r) => r.concepts);
   const passed = all.filter((c) => c.stage === "passed").length;
@@ -111,6 +155,7 @@ export function CreateLogo({ onOpen, active = true }: { onOpen: (c: ConceptState
             </>
           }
         >
+          {startOverBtn}
           <Btn onClick={() => setReviewing(true)} kbd="R" title="Review references (R)">
             <Images className="h-3.5 w-3.5" aria-hidden="true" />
             References{job.refs.length ? ` (${job.refs.length})` : ""}
@@ -238,6 +283,7 @@ export function CreateLogo({ onOpen, active = true }: { onOpen: (c: ConceptState
     return (
       <div className="flex min-h-0 flex-1 flex-col">
         <PanelHeader title="Review brief" meta={<span className="hidden text-muted-foreground sm:inline">Cleaned up from your notes — fix anything before generating</span>}>
+          {startOverBtn}
           <Btn variant="ghost" onClick={() => job.setPhase(job.rounds.length ? "done" : "idle")}>
             <ArrowLeft className="h-3.5 w-3.5" aria-hidden="true" />
             {job.rounds.length ? "Back to concepts" : "Edit notes"}
@@ -264,7 +310,10 @@ export function CreateLogo({ onOpen, active = true }: { onOpen: (c: ConceptState
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <PanelHeader title="New brief" meta={<span className="hidden text-muted-foreground sm:inline">Write it, paste a page, or drop a screenshot or PDF</span>} />
+      <PanelHeader title="New brief" meta={<span className="hidden text-muted-foreground sm:inline">Write it, paste a page, or drop a screenshot or PDF</span>}>
+        {startOverBtn}
+      </PanelHeader>
+      {undoBar}
       <div className="flex min-h-0 flex-1 flex-col items-center overflow-y-auto px-4 pt-4 pb-8 sm:pt-8">
         <BriefComposer
           notes={notes}
