@@ -46,9 +46,10 @@
     try {
       const ctl = new AbortController();
       const t = setTimeout(() => ctl.abort(), 10000);
-      await fetch(APP, { mode: "no-cors", cache: "no-store", signal: ctl.signal });
+      await fetch(APP, { mode: "no-cors", cache: "reload", signal: ctl.signal });
       clearTimeout(t);
-      location.replace(APP);
+      // A fresh copy every launch: the window must never keep showing an older LOGOO.
+      location.replace(APP + "?launch=" + Date.now());
     } catch {
       wait.hidden = true;
       msg.textContent = "LOGOO needs an internet connection to draw logos. Check your connection, then try again.";
