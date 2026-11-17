@@ -6,12 +6,12 @@ import { parseSvg, type ViewBox } from "@/lib/outline";
 import type { Fill, GradientStop } from "@/lib/color-trace";
 import type { TracedPath } from "@/lib/vectorize";
 
-const n = (v: number) => {
+export const n = (v: number) => {
   const r = Math.round(v * 10000) / 10000;
   return Object.is(r, -0) ? "0" : String(r);
 };
 
-function rgb(hex: string): [number, number, number] {
+export function rgb(hex: string): [number, number, number] {
   const v = /^#[0-9a-f]{6}$/i.test(hex) ? hex : "#000000";
   return [1, 3, 5].map((i) => parseInt(v.slice(i, i + 2), 16) / 255) as [number, number, number];
 }
@@ -28,7 +28,7 @@ function pathOps(paths: TracedPath[]) {
 }
 
 /** Stops sorted, clamped to 0–1 and padded so they span the whole range. */
-function spanStops(stops: GradientStop[]) {
+export function spanStops(stops: GradientStop[]) {
   const s = [...stops].map((st) => ({ ...st, offset: Math.max(0, Math.min(1, st.offset)) })).sort((a, b) => a.offset - b.offset);
   if (!s.length) return [{ offset: 0, color: "#000000" }, { offset: 1, color: "#000000" }];
   if (s[0]!.offset > 0) s.unshift({ ...s[0]!, offset: 0 });

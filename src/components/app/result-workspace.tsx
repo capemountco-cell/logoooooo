@@ -35,7 +35,10 @@ type Props = {
 
 const SIZES = [1024, 2048, 4096] as const;
 const BOARD_SIZES = [BOARD.width, BOARD.width * 2, BOARD.width * 3] as const;
-type Format = "svg" | "ai" | "png" | "png-white" | "png-brand";
+type Format = "svg" | "ai" | "eps-cmyk" | "eps-rgb" | "png" | "png-white" | "png-brand";
+type Vector = "svg" | "ai" | "eps-cmyk" | "eps-rgb";
+const isVector = (f: Format): f is Vector => f === "svg" || f === "ai" || f === "eps-cmyk" || f === "eps-rgb";
+const VECTOR_NAME: Record<Vector, string> = { svg: "SVG", ai: "Illustrator file", "eps-cmyk": "Print EPS", "eps-rgb": "Digital EPS" };
 type PngBack = "transparent" | "white" | "brand";
 
 function Stat({ label, value, extra }: { label: string; value: string | number; extra?: string | undefined }) {
@@ -54,7 +57,8 @@ const pct = (v: number) => `${(Math.floor(v * 1000) / 10).toFixed(1)}%`;
 
 export function ResultWorkspace({ result, versions, onPickVersion, onNew, onRerun, onFix, notice, onVariant, colorBusy }: Props) {
   const [view, setView] = useState<PreviewView>("artwork");
-  const [format, setFormat] = useState<"svg" | "ai" | "png">("svg");
+  const [format, setFormat] = useState<"svg" | "ai" | "eps" | "png">("svg");
+  const [epsMode, setEpsMode] = useState<"cmyk" | "rgb">("cmyk");
   const [canvas, setCanvas] = useState<Canvas>("board");
   const [pngBack, setPngBack] = useState<PngBack>("transparent");
   const [sizes, setSizes] = useState<Record<Canvas, number>>({ board: BOARD.width, logo: result.pngs.size });
@@ -84,7 +88,10 @@ export function ResultWorkspace({ result, versions, onPickVersion, onNew, onReru
   const size = sizes[canvas];
   const key = (c: Canvas, s: number) => `${c}:${s}`;
   const defaults = (r: LogoResult): Record<string, PngPair> => ({ [key("board", BOARD.width)]: r.board.pngs, [key("logo", r.pngs.size)]: r.pngs });
-  const files = { board: { svg: result.board.svgFile, ai: result.board.aiFile }, logo: { svg: result.svgFile, ai: result.aiFile } };
+  const files: Record<Canvas, Record<Vector, File>> = {
+    board: { svg: result.board.svgFile, ai: result.board.aiFile, "eps-cmyk": result.board.epsFiles.cmyk, "eps-rgb": result.board.epsFiles.rgb },
+    logo: { svg: result.svgFile, ai: result.aiFile, "eps-cmyk": result.epsFiles.cmyk, "eps-rgb": result.epsFiles.rgb },
+  };
 
   // A new result starts over with its own prepared files.
   useEffect(() => {
@@ -125,9 +132,9 @@ export function ResultWorkspace({ result, versions, onPickVersion, onNew, onReru
   // Must run straight from the tap: mobile sharing refuses a share started after an await.
   const save = (f: Format, c: Canvas, pngs: PngPair | undefined) => {
     setSaveError(null);
-    if (f === "svg" || f === "ai") {
+    if (isVector(f)) {
       saveLogoSvg(files[c][f]).catch((e: unknown) => {
-        if (!(e instanceof Error && e.name === "AbortError")) setSaveError(`The ${f === "ai" ? "Illustrator file" : "SVG"} could not be saved. Try again.`);
+        if (!(e instanceof Error && e.name === "AbortError")) setSaveError(`The ${VECTOR_NAME[f]} could not be saved. Try again.`);
       });
       return;
     }
@@ -361,7 +368,13 @@ export function ResultWorkspace({ result, versions, onPickVersion, onNew, onReru
               onChange={setCanvas}
               options={[{ value: "board", label: "Board" }, { value: "logo", label: "Logo" }]}
             />
-            <Segmented label="Format" value={format} onChange={setFormat} options={[{ value: "ai", label: ".Ai" }, { value: "svg", label: ".SVG" }, { value: "png", label: ".PNG" }]} />
+            <Segmented label="Format" value={format} onChange={setFormat} options={[{ value: "ai", label: ".Ai" }, { value: "eps", label: ".EPS" }, { value: "svg", label: ".SVG" }, { value: "png", label: ".PNG" }]} />
+            {format === "eps" && (
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-[13px] text-subtle">Colour</span>
+                <Segmented size="sm" label="EPS colour mode" value={epsMode} onChange={setEpsMode} options={[{ value: "cmyk", label: "Print · CMYK" }, { value: "rgb", label: "Digital · RGB" }]} />
+              </div>
+            )}
             {format === "png" && (
               <div className="flex flex-col gap-2.5">
                 <div className="flex items-center justify-between gap-2">
@@ -378,11 +391,11 @@ export function ResultWorkspace({ result, versions, onPickVersion, onNew, onReru
               type="button"
               disabled={(format === "png" && (!prepared[key(canvas, size)] || preparing)) || saving}
               ref={downloadRef}
-              onClick={() => save(format !== "png" ? format : pngBack === "white" ? "png-white" : pngBack === "brand" ? "png-brand" : "png", canvas, prepared[key(canvas, size)])}
+              onClick={() => save(format === "eps" ? `eps-${epsMode}` : format !== "png" ? format : pngBack === "white" ? "png-white" : pngBack === "brand" ? "png-brand" : "png", canvas, prepared[key(canvas, size)])}
               className="inline-flex h-[50px] items-center justify-center gap-2.5 rounded-[13px] bg-primary text-[15px] font-semibold text-primary-foreground disabled:opacity-50"
             >
               <Download className="h-[18px] w-[18px]" aria-hidden="true" />
-              {format === "png" && preparing ? "Preparing .PNG…" : format === "png" ? "Download .PNG" : format === "ai" ? "Download .Ai" : "Download .SVG"}
+              {format === "png" && preparing ? "Preparing .PNG…" : format === "png" ? "Download .PNG" : format === "ai" ? "Download .Ai" : format === "eps" ? `Download ${epsMode === "cmyk" ? "Print" : "Digital"} .EPS` : "Download .SVG"}
               <Kbd className="bg-white/15 text-white/85">{MOD}S</Kbd>
             </button>
             <p className="text-center text-xs text-muted-foreground">
@@ -391,6 +404,10 @@ export function ResultWorkspace({ result, versions, onPickVersion, onNew, onReru
                 ? "Rendered from the vector, so it stays crisp at any size."
                 : format === "ai"
                   ? "Adobe Illustrator file · every outline opens as an editable path."
+                  : format === "eps"
+                  ? epsMode === "cmyk"
+                    ? "Print vector in CMYK process colours · EPS for printers and stock sites."
+                    : "Digital vector in RGB colours · EPS for screens and stock sites."
                   : result.variant === "color"
                   ? `${shapeLayers.length} colour shapes${gradientCount ? `, ${gradientCount} gradients` : ""}${shadeCount ? `, ${shadeCount} soft highlights & shadows` : ""} · opens in Figma, Illustrator and Canva.`
                   : "One clean path · opens in Figma, Illustrator and Canva."}
@@ -427,6 +444,8 @@ export function ResultWorkspace({ result, versions, onPickVersion, onNew, onReru
                 [
                   ["svg", "SVG vector", "Infinitely sharp · for Figma, Canva, print"],
                   ["ai", "Adobe Illustrator (.ai)", "Editable paths · opens in Illustrator"],
+                  ["eps-cmyk", "EPS · Print (CMYK)", "Vector in process colours · for printers"],
+                  ["eps-rgb", "EPS · Digital (RGB)", "Vector in screen colours · for web and stock sites"],
                   ["png", "PNG · transparent", `${sheetDims} · for socials and slides`],
                   ["png-white", "PNG · white background", `${sheetDims} · for documents and email`],
                   ...(brand ? ([["png-brand", "PNG · brand background", `${sheetDims} · on your logo's own colour`]] as const) : []),
@@ -441,9 +460,9 @@ export function ResultWorkspace({ result, versions, onPickVersion, onNew, onReru
                 </label>
               ))}
             </fieldset>
-            <button type="button" disabled={saving || (sheetFormat !== "svg" && sheetFormat !== "ai" && !sheetPngs)} onClick={() => save(sheetFormat, canvas, sheetPngs)} className="inline-flex h-[54px] items-center justify-center gap-2.5 rounded-[15px] bg-primary text-base font-semibold text-primary-foreground disabled:opacity-50">
+            <button type="button" disabled={saving || (!isVector(sheetFormat) && !sheetPngs)} onClick={() => save(sheetFormat, canvas, sheetPngs)} className="inline-flex h-[54px] items-center justify-center gap-2.5 rounded-[15px] bg-primary text-base font-semibold text-primary-foreground disabled:opacity-50">
               <Download className="h-[18px] w-[18px]" aria-hidden="true" />
-              {saving ? "Opening save options…" : sheetFormat === "svg" ? "Save .SVG" : sheetFormat === "ai" ? "Save .Ai" : "Save .PNG"}
+              {saving ? "Opening save options…" : sheetFormat === "svg" ? "Save .SVG" : sheetFormat === "ai" ? "Save .Ai" : isVector(sheetFormat) ? "Save .EPS" : "Save .PNG"}
             </button>
             <button type="button" onClick={copy} className="inline-flex h-12 items-center justify-center gap-2.5 rounded-[14px] border border-border bg-card text-[15px] font-medium">
               <Copy className="h-4 w-4" aria-hidden="true" />

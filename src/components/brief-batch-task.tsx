@@ -6,11 +6,11 @@ import { useBriefJob } from "@/hooks/use-brief-job";
 import { logoType, type LogoBrief } from "@/lib/brief";
 import type { ConceptState } from "@/lib/concept-pipeline";
 import { conceptName, traceConcept } from "@/lib/concept-result";
-import { saveLogoSvg } from "@/lib/logo-files";
+import { saveFiles, saveLogoSvg } from "@/lib/logo-files";
 import { savePng } from "@/lib/save-png";
 import { cn } from "@/lib/utils";
 
-export type BatchBriefFiles = { svgFile: File; aiFile: File; pngFile: File };
+export type BatchBriefFiles = { svgFile: File; aiFile: File; epsFiles: File[]; pngFile: File };
 /** Where a batch row belongs in the grouped list. */
 export type BatchTaskStatus = "running" | "ready" | "failed";
 
@@ -75,7 +75,7 @@ export function BriefBatchTask({
       .then((t) => {
         if (!live) return;
         const r = t.color ?? t.mono;
-        const f = { svgFile: r.board.svgFile, aiFile: r.board.aiFile, pngFile: r.board.pngs.pngFile };
+        const f = { svgFile: r.board.svgFile, aiFile: r.board.aiFile, epsFiles: [r.board.epsFiles.cmyk, r.board.epsFiles.rgb], pngFile: r.board.pngs.pngFile };
         setFiles(f);
         report.current(f);
       })
@@ -86,9 +86,9 @@ export function BriefBatchTask({
 
   useEffect(() => () => report.current(null), []);
 
-  const save = (file: File, png = false) => {
+  const save = (file: File | File[], png = false) => {
     setError("");
-    (png ? savePng(file) : saveLogoSvg(file)).catch((e: unknown) => {
+    (Array.isArray(file) ? saveFiles(file) : png ? savePng(file) : saveLogoSvg(file)).catch((e: unknown) => {
       if (!(e instanceof Error && e.name === "AbortError")) setError(e instanceof Error ? e.message : "Saving failed.");
     });
   };
@@ -128,6 +128,7 @@ export function BriefBatchTask({
         {chosen && (
           <span className="flex items-center gap-1.5">
             <button type="button" disabled={!files} onClick={() => files && save(files.aiFile)} aria-label={`Save Illustrator file for ${name}`} className={fmt}>.Ai</button>
+            <button type="button" disabled={!files} onClick={() => files && save(files.epsFiles)} aria-label={`Save EPS files (print CMYK and digital RGB) for ${name}`} title="Print (CMYK) and Digital (RGB) EPS" className={fmt}>.EPS</button>
             <button type="button" disabled={!files} onClick={() => files && save(files.svgFile)} aria-label={`Save SVG for ${name}`} className={cn(fmt, "text-foreground")}>{preparing ? "…" : ".SVG"}</button>
             <button type="button" disabled={!files} onClick={() => files && save(files.pngFile, true)} aria-label={`Save PNG for ${name}`} className={fmt}>.PNG</button>
             <button type="button" onClick={() => job.brief && onOpen(chosen, job.brief)} aria-label={`Open ${name} in the editor`} title="Open in the editor" className="inline-flex h-[26px] w-[26px] items-center justify-center rounded-[7px] border border-input bg-card text-subtle hover:text-foreground">

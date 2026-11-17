@@ -1,5 +1,6 @@
 import { downloadFile, isMobileSaveDevice } from "@/lib/save-png";
 import { svgToAi } from "@/lib/ai-export";
+import { svgToEps } from "@/lib/eps-export";
 
 export function logoFile(href: string, name: string, type: string) {
   const bin = href.startsWith("data:") && href.includes(";base64,")
@@ -11,6 +12,15 @@ export function logoFile(href: string, name: string, type: string) {
 /** The Illustrator file for an SVG: PDF-compatible .ai, which Illustrator opens as editable paths. */
 export function aiFile(svg: string, name: string) {
   return new File([new TextEncoder().encode(svgToAi(svg, name))], `${name}.ai`, { type: "application/pdf" });
+}
+
+export type EpsFiles = { cmyk: File; rgb: File };
+
+/** EPS vectors in both colour modes: Print (CMYK) and Digital (RGB), as stock sites ask for. */
+export function epsFiles(svg: string, name: string): EpsFiles {
+  const make = (mode: "cmyk" | "rgb", suffix: string) =>
+    new File([new TextEncoder().encode(svgToEps(svg, name, mode))], `${name}-${suffix}.eps`, { type: "application/postscript" });
+  return { cmyk: make("cmyk", "print-cmyk"), rgb: make("rgb", "digital-rgb") };
 }
 
 export async function flattenLogo(file: File): Promise<File> {
@@ -30,11 +40,16 @@ export async function flattenLogo(file: File): Promise<File> {
   } finally { bitmap.close(); }
 }
 
-/** Saves a vector file (SVG or AI): share sheet on mobile, download on desktop. */
+/** Saves a vector file (SVG, AI or EPS): share sheet on mobile, download on desktop. */
 export function saveLogoSvg(file: File) {
-  if (isMobileSaveDevice() && navigator.canShare?.({ files: [file] }) && typeof navigator.share === "function") {
-    return navigator.share({ files: [file] });
+  return saveFiles([file]);
+}
+
+/** Saves several files at once (e.g. both EPS colour modes): one share sheet on mobile, downloads on desktop. */
+export function saveFiles(files: File[]) {
+  if (isMobileSaveDevice() && navigator.canShare?.({ files }) && typeof navigator.share === "function") {
+    return navigator.share({ files });
   }
-  downloadFile(file);
+  files.forEach((f, i) => setTimeout(() => downloadFile(f), i * 250));
   return Promise.resolve();
 }
