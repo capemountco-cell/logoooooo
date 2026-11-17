@@ -208,7 +208,6 @@ function closeColorSeams(out: Float32Array, rgba: Uint8ClampedArray, dist: Float
     for (let i = 0; i < n; i++) {
       if (dist[i]! < min) continue;
       const v = [(rgba[i * 4] ?? 255) - bg[0], (rgba[i * 4 + 1] ?? 255) - bg[1], (rgba[i * 4 + 2] ?? 255) - bg[2]];
-      // Solid pixels of this colour (within a small distance of it).
       if (Math.hypot(v[0]! - c[0]!, v[1]! - c[1]!, v[2]! - c[2]!) < 20) own[i] = 1;
     }
     near.push(maxFilter(own, width, height, reach));
@@ -1552,6 +1551,399 @@ export function traceSettings(softness: number) {
   };
 }
 
+// ---------- 6. Clean geometry (black & white exact traces) ----------
+
+/**
+ * Print-ready geometry from a traced outline. The tracer follows the image to a fraction of a
+ * pixel, so it copies the source's own flaws: pieces of a multi-colour logo that are offset by
+ * half a pixel, a tip that sticks out past its neighbour, edges split into dozens of tiny
+ * curves (live bug: a purple/coral/white mark whose black & white outline had steps and nubs
+ * where the colours met — unacceptable for print). This pass refits each outline as the
+ * fewest clean pieces: real corners stay corners (sharp both up close and over a wider window,
+ * so rounded corners stay round and sub-pixel kinks are not corners); between corners the
+ * longest straight line that fits is taken, else the longest smooth curve; pieces join with
+ * matching tangents and near-axis lines become exactly horizontal/vertical. The tolerance
+ * grows with the shape's size (0.2% of it, ≤ 1 px); shapes under ~125 px keep their precise trace.
+ */
+export function cleanGeometry(paths: TracedPath[], maxTol = 1): TracedPath[] {
+  return paths.map((p) => cleanPath(p, maxTol));
+}
+
+function samplePath(p: TracedPath, step: number) {
+  const pts: Point[] = [p.start];
+  let from = p.start;
+  for (const s of p.segments) {
+    if (s.type === "L") {
+      const n = Math.max(1, Math.ceil(len(sub(s.to, from)) / step));
+      for (let i = 1; i <= n; i++) pts.push(add(from, mul(sub(s.to, from), i / n)));
+    } else {
+      const c = [from, s.c1, s.c2, s.to];
+      const rough = len(sub(s.c1, from)) + len(sub(s.c2, s.c1)) + len(sub(s.to, s.c2));
+      pts.push(...sampleCubic(c, Math.max(2, Math.ceil(rough / step))).slice(1));
+    }
+    from = s.to;
+  }
+  // Closed: drop the repeated start and near-duplicates.
+  const out: Point[] = [];
+  for (const q of pts) if (!out.length || len(sub(q, out[out.length - 1]!)) > step * 0.25) out.push(q);
+  if (out.length > 1 && len(sub(out[0]!, out[out.length - 1]!)) < step * 0.5) out.pop();
+  return out;
+}
+
+/** Index of the sample `dist` along the closed polyline from i (spacing ≈ step). */
+const offsetIdx = (n: number, i: number, k: number) => ((i + k) % n + n) % n;
+
+function turnAngle(pts: Point[], i: number, k: number) {
+  const n = pts.length;
+  const a = sub(pts[i]!, pts[offsetIdx(n, i, -k)]!), b = sub(pts[offsetIdx(n, i, k)]!, pts[i]!);
+  const la = len(a), lb = len(b);
+  if (!la || !lb) return 0;
+  return Math.acos(Math.max(-1, Math.min(1, dot(a, b) / (la * lb))));
+}
+
+/** Total-least-squares line through points: centroid and unit direction. */
+function fitTlsLine(pts: Point[], i0: number, i1: number) {
+  let cx = 0, cy = 0;
+  const m = i1 - i0 + 1;
+  for (let i = i0; i <= i1; i++) { cx += pts[i]!.x; cy += pts[i]!.y; }
+  cx /= m; cy /= m;
+  let sxx = 0, syy = 0, sxy = 0;
+  for (let i = i0; i <= i1; i++) { const dx = pts[i]!.x - cx, dy = pts[i]!.y - cy; sxx += dx * dx; syy += dy * dy; sxy += dx * dy; }
+  const theta = 0.5 * Math.atan2(2 * sxy, sxx - syy);
+  let dir = { x: Math.cos(theta), y: Math.sin(theta) };
+  if (dot(dir, sub(pts[i1]!, pts[i0]!)) < 0) dir = mul(dir, -1);
+  // Near-axis lines are exactly axis-aligned (designers draw them that way).
+  const snap = (1.5 * Math.PI) / 180;
+  if (Math.abs(dir.y) < Math.sin(snap)) dir = { x: Math.sign(dir.x) || 1, y: 0 };
+  else if (Math.abs(dir.x) < Math.sin(snap)) dir = { x: 0, y: Math.sign(dir.y) || 1 };
+  let max = 0;
+  // Bow: the sagitta of a parabola fitted to the deviations along the line. A gentle arc has a
+  // consistent bow (it is a curve, not a line); wobble along a straight edge does not.
+  let s0 = 0, s1 = 0, s2 = 0, s3 = 0, s4 = 0, d0 = 0, d1 = 0, d2 = 0, tMin = Infinity, tMax = -Infinity;
+  for (let i = i0; i <= i1; i++) {
+    const dx = pts[i]!.x - cx, dy = pts[i]!.y - cy;
+    const d = dx * dir.y - dy * dir.x, t = dx * dir.x + dy * dir.y;
+    if (Math.abs(d) > max) max = Math.abs(d);
+    tMin = Math.min(tMin, t); tMax = Math.max(tMax, t);
+    s0++; s1 += t; s2 += t * t; s3 += t * t * t; s4 += t * t * t * t; d0 += d; d1 += d * t; d2 += d * t * t;
+  }
+  // Solve [s4 s3 s2; s3 s2 s1; s2 s1 s0] [a b c] = [d2 d1 d0] for the quadratic term a.
+  const det3 = (m: number[]) => m[0]! * (m[4]! * m[8]! - m[5]! * m[7]!) - m[1]! * (m[3]! * m[8]! - m[5]! * m[6]!) + m[2]! * (m[3]! * m[7]! - m[4]! * m[6]!);
+  const D = det3([s4, s3, s2, s3, s2, s1, s2, s1, s0]);
+  const ok = Math.abs(D) > 1e-9;
+  const qa = ok ? det3([d2, s3, s2, d1, s2, s1, d0, s1, s0]) / D : 0;
+  const qb = ok ? det3([s4, d2, s2, s3, d1, s1, s2, d0, s0]) / D : 0;
+  const qc = ok ? det3([s4, s3, d2, s3, s2, d1, s2, s1, d0]) / D : 0;
+  let res = 0;
+  for (let i = i0; i <= i1; i++) {
+    const dx = pts[i]!.x - cx, dy = pts[i]!.y - cy;
+    const d = dx * dir.y - dy * dir.x, t = dx * dir.x + dy * dir.y;
+    res += (d - (qa * t * t + qb * t + qc)) ** 2;
+  }
+  const half = (tMax - tMin) / 2;
+  const bow = Math.abs(qa) * half * half;
+  // Curved: a bow that clearly stands out from the wobble around it (smooth traced arcs have
+  // almost none, so even a short piece of an arc is recognised as a curve).
+  const curved = bow > 1.5 * Math.sqrt(res / s0) + 0.005;
+  return { c: { x: cx, y: cy }, dir, max, bow, curved };
+}
+
+function fitCurveSpan(pts: Point[], t1: Point, t2: Point) {
+  let u = chordParams(pts);
+  let c = generateBezier(pts, u, t1, t2);
+  for (let it = 0; it < 4; it++) {
+    u = reparameterize(c, pts, u);
+    c = generateBezier(pts, u, t1, t2);
+  }
+  return { c, max: maxError(c, pts, u).max };
+}
+
+const projectOnLine = (q: Point, l: { c: Point; dir: Point }) => add(l.c, mul(l.dir, dot(sub(q, l.c), l.dir)));
+
+function intersectLines(a: { c: Point; dir: Point }, b: { c: Point; dir: Point }): Point | null {
+  const det = a.dir.x * b.dir.y - a.dir.y * b.dir.x;
+  if (Math.abs(det) < 1e-6) return null;
+  const d = sub(b.c, a.c);
+  const t = (d.x * b.dir.y - d.y * b.dir.x) / det;
+  return add(a.c, mul(a.dir, t));
+}
+
+type Piece = { kind: "L"; i0: number; i1: number; line: { c: Point; dir: Point } } | { kind: "C"; i0: number; i1: number };
+
+function cleanPath(path: TracedPath, maxTol: number): TracedPath {
+  const step = 0.5;
+  const raw = samplePath(path, step);
+  const n = raw.length;
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  for (const q of raw) { minX = Math.min(minX, q.x); maxX = Math.max(maxX, q.x); minY = Math.min(minY, q.y); maxY = Math.max(maxY, q.y); }
+  const size = Math.max(maxX - minX, maxY - minY);
+  // Small shapes (lettering, small marks) are already traced precisely; cleaning them with a
+  // coarse tolerance would only lose detail, so only shapes ≥ ~125 px are rebuilt.
+  const tol = Math.min(maxTol, size * 0.002);
+  if (n < 24 || tol < 0.25) return path;
+  // Corners: sharp at a 1.5 px and a 4 px reach.
+  const kNear = 3, kFar = 8, sharp = (40 * Math.PI) / 180;
+  const ang = raw.map((_, i) => (turnAngle(raw, i, kNear) > sharp && turnAngle(raw, i, kFar) > sharp ? turnAngle(raw, i, kFar) : 0));
+  const corners: number[] = [];
+  for (let i = 0; i < n; i++) {
+    if (!ang[i]) continue;
+    let peak = true;
+    for (let k = -kFar; k <= kFar && peak; k++) if (k && ang[offsetIdx(n, i, k)]! > ang[i]! + (k > 0 ? 0 : 1e-9)) peak = false;
+    if (peak && !corners.some((c) => Math.abs(c - i) < kFar)) corners.push(i);
+  }
+  // Rotate so the polyline starts at a corner (or the sharpest bend).
+  let start = corners[0];
+  if (start === undefined) {
+    let best = -1;
+    for (let i = 0; i < n; i++) { const a = turnAngle(raw, i, kFar); if (a > best) { best = a; start = i; } }
+  }
+  const pts = [...raw.slice(start!), ...raw.slice(0, start!)];
+  const cornerSet = new Set(corners.map((c) => offsetIdx(n, c, -start!)));
+  cornerSet.add(0);
+  const cuts = [...cornerSet].sort((a, b) => a - b);
+  // Tangent estimate at sample i within span [a, b] (one-sided at the span ends).
+  const tangent = (i: number, a: number, b: number) => {
+    const lo = Math.max(a, i - 4), hi = Math.min(b, i + 4);
+    const at = (j: number) => pts[j % n]!;
+    return norm(sub(at(hi), at(lo)));
+  };
+  const pieces: Piece[] = [];
+  for (let s = 0; s < cuts.length; s++) {
+    const a = cuts[s]!, b = s + 1 < cuts.length ? cuts[s + 1]! : n; // b == n means the start again
+    const span = (i0: number, i1: number) => { const out: Point[] = []; for (let i = i0; i <= i1; i++) out.push(pts[i % n]!); return out; };
+    const lineTol = (L: number) => Math.min(tol, 0.12 + 0.006 * L);
+    const curveTol = (L: number) => Math.min(tol, 0.12 + 0.005 * L);
+    const minLine = 6 / step; // a line shorter than 6 px is just part of a curve
+    const isStraight = (l: { max: number; bow: number; curved: boolean }, L: number) => l.max <= lineTol(L) && l.bow <= Math.min(0.12, tol * 0.2) && !l.curved;
+    // Longest end that still fits from i: exponential then binary search.
+    const longest = (i: number, end: number, ok: (j: number) => unknown) => {
+      let good = i + 1, stride = 2;
+      while (good + stride <= end && ok(good + stride)) { good += stride; stride *= 2; }
+      let lo = good, hi = Math.min(end, good + stride);
+      if (hi > lo && ok(hi)) return hi;
+      while (hi - lo > 1) { const mid = (lo + hi) >> 1; if (ok(mid)) lo = mid; else hi = mid; }
+      return lo;
+    };
+    // 1. Straight runs first, longest first, so a curve never swallows part of a straight edge.
+    const cands: { i0: number; i1: number }[] = [];
+    for (let i = a; i < b - minLine; i += 2) {
+      const straight = (j: number) => {
+        const sp = span(i, j);
+        const l = fitTlsLine(sp, 0, sp.length - 1);
+        return isStraight(l, (j - i) * step);
+      };
+      // Furthest end that fits, trying ends at growing distances (robust to a bump midway).
+      let j = i;
+      let tryEnd = i + minLine, lastBad = -1;
+      while (tryEnd <= b) {
+        if (straight(tryEnd)) j = tryEnd; else if (lastBad < 0 || tryEnd < lastBad) lastBad = tryEnd;
+        if (tryEnd === b) break;
+        tryEnd = Math.min(b, Math.ceil(tryEnd + Math.max(2, (tryEnd - i) * 0.15)));
+      }
+      if (j > i) { let lo = j, hi = Math.min(b, Math.ceil(j + Math.max(2, (j - i) * 0.15))); while (hi - lo > 1) { const mid = (lo + hi) >> 1; if (straight(mid)) lo = mid; else hi = mid; } j = lo; }
+      if (j - i >= minLine) cands.push({ i0: i, i1: j });
+      void lastBad;
+    }
+    cands.sort((p, q) => q.i1 - q.i0 - (p.i1 - p.i0));
+    const runs: { i0: number; i1: number; line: { c: Point; dir: Point } }[] = [];
+    for (const c of cands) {
+      let lo = c.i0, hi = c.i1;
+      for (const r of runs) {
+        if (lo < r.i1 && hi > r.i0) { if (r.i0 <= lo) lo = Math.max(lo, r.i1); else hi = Math.min(hi, r.i0); }
+      }
+      if (hi - lo < minLine) continue;
+      // Trim tails that keep curving away (a curve starting), at both ends.
+      let l = fitTlsLine(span(lo, hi), 0, hi - lo);
+      const dev = (j: number) => Math.abs(dot(sub(pts[j % n]!, l.c), { x: l.dir.y, y: -l.dir.x }));
+      while (hi - lo > minLine && hi < b && dev(hi) > tol * 0.35 && dev(hi - 1) < dev(hi) && dev(hi - 2) < dev(hi - 1)) hi--;
+      while (hi - lo > minLine && lo > a && dev(lo) > tol * 0.35 && dev(lo + 1) < dev(lo) && dev(lo + 2) < dev(lo + 1)) lo++;
+      if (hi - lo < minLine) continue;
+      l = fitTlsLine(span(lo, hi), 0, hi - lo);
+      if (runs.some((r) => lo < r.i1 && hi > r.i0)) continue;
+      runs.push({ i0: lo, i1: hi, line: l });
+    }
+    runs.sort((p, q) => p.i0 - q.i0);
+    // 2. Curves fill the gaps.
+    const fillCurves = (from: number, to: number) => {
+      let i = from;
+      while (i < to) {
+        const j = to - i <= 3 ? to : longest(i, to, (j) => {
+          const sp = span(i, j);
+          if (sp.length < 4) return true;
+          return fitCurveSpan(sp, tangent(i, a, b), mul(tangent(j, a, b), -1)).max <= curveTol((j - i) * step);
+        });
+        pieces.push({ kind: "C", i0: i, i1: Math.max(i + 1, j) });
+        i = Math.max(i + 1, j);
+      }
+    };
+    let at = a;
+    for (const r of runs) {
+      if (r.i0 > at) fillCurves(at, r.i0);
+      pieces.push({ kind: "L", i0: r.i0, i1: r.i1, line: r.line });
+      at = r.i1;
+    }
+    if (at < b) fillCurves(at, b);
+  }
+  // Merge neighbouring lines that ended up collinear (same direction, ≤ tol apart).
+  for (let k = 0; k + 1 < pieces.length; k++) {
+    const a = pieces[k]!, b = pieces[k + 1]!;
+    if (a.kind !== "L" || b.kind !== "L" || cornerSet.has(b.i0)) continue;
+    const merged = fitTlsLine(pts.concat(pts), a.i0, b.i1);
+    // Only when the joined line is truly straight (never a chain of chords along an arc).
+    const L = (b.i1 - a.i0) * step;
+    if (merged.max <= Math.min(tol, 0.12 + 0.006 * L) && merged.bow <= Math.min(0.12, tol * 0.2) && !merged.curved) { pieces.splice(k, 2, { kind: "L", i0: a.i0, i1: b.i1, line: merged }); k--; }
+  }
+  // Merge short neighbouring pieces into one smooth curve when it fits (absorbs short S-bends
+  // and stubs where a curve meets a line, e.g. an arc ending half a pixel off the edge it runs
+  // into). Long straight edges (≥ 30 px) always stay lines.
+  const pieceLen = (q: Piece) => (q.i1 - q.i0) * step;
+  for (let changed = true; changed; ) {
+    changed = false;
+    for (let k = 0; k < pieces.length && !changed; k++) {
+      for (let r = Math.min(3, pieces.length - k - 1); r >= 1 && !changed; r--) {
+        const group = pieces.slice(k, k + r + 1);
+        if (group.some((q) => q.kind === "L" && pieceLen(q) >= 30)) continue;
+        if (group.every((q) => q.kind === "L")) continue;
+        if (group.slice(1).some((q) => cornerSet.has(q.i0 % n))) continue;
+        const first = group[0]!, last = group[group.length - 1]!;
+        const before = pieces[(k - 1 + pieces.length) % pieces.length]!, after = pieces[(k + r + 1) % pieces.length]!;
+        const sp: Point[] = [];
+        for (let i = first.i0; i <= last.i1; i++) sp.push(pts[i % n]!);
+        if (sp.length < 4) continue;
+        const smoothStart = before.kind === "L" && !cornerSet.has(first.i0 % n);
+        const smoothEnd = after.kind === "L" && !cornerSet.has(last.i1 % n);
+        const t1 = smoothStart ? before.line.dir : tangent(first.i0, first.i0, last.i1);
+        const t2 = smoothEnd ? mul(after.line.dir, -1) : mul(tangent(last.i1, first.i0, last.i1), -1);
+        if (smoothStart) sp[0] = projectOnLine(sp[0]!, before.line);
+        if (smoothEnd) sp[sp.length - 1] = projectOnLine(sp[sp.length - 1]!, after.line);
+        if (fitCurveSpan(sp, t1, t2).max <= tol) { pieces.splice(k, r + 1, { kind: "C", i0: first.i0, i1: last.i1 }); changed = true; }
+      }
+    }
+  }
+  // A curve or line that meets a straight edge at an angle, with only a short stub in between
+  // (the source cut a tip short, or left it half a pixel proud): continue the piece along its
+  // own end direction until it meets the edge, making a crisp corner there.
+  const joinAt = new Map<number, Point>();
+  const ray = (q: Piece, atEnd: boolean) => {
+    if (q.kind === "L") return { c: q.line.c, dir: q.line.dir };
+    const i = atEnd ? q.i1 : q.i0;
+    const t = atEnd ? norm(sub(pts[i % n]!, pts[Math.max(q.i0, i - 8) % n]!)) : norm(sub(pts[Math.min(q.i1, i + 8) % n]!, pts[i % n]!));
+    return { c: pts[i % n]!, dir: t };
+  };
+  for (let k = 0; k < pieces.length; k++) {
+    const line = pieces[k]!;
+    if (line.kind !== "L" || pieceLen(line) < 12) continue;
+    for (const side of [-1, 1] as const) {
+      // Stub pieces between this line and the next real piece on that side.
+      const stub: number[] = [];
+      let total = 0, idx = k;
+      for (;;) {
+        const nx = (idx + side + pieces.length) % pieces.length;
+        if (nx === k) break;
+        const q = pieces[nx]!;
+        if (total + pieceLen(q) > 8 || (q.kind === "L" && pieceLen(q) >= 12)) break;
+        stub.push(nx); total += pieceLen(q); idx = nx;
+      }
+      if (!stub.length) continue;
+      const otherIdx = (idx + side + pieces.length) % pieces.length;
+      if (otherIdx === k || stub.includes(otherIdx)) continue;
+      const other = pieces[otherIdx]!;
+      if (pieceLen(other) < 8) continue;
+      const r = ray(other, side === -1);
+      const x = intersectLines(r, line.line);
+      if (!x) continue;
+      const ang = Math.acos(Math.min(1, Math.abs(dot(r.dir, line.line.dir))));
+      if (ang < (5 * Math.PI) / 180) continue; // practically tangent: the merge pass handles it
+      // The corner must sit right where the stub is, and the stub must hug the new outline.
+      const stubPts: Point[] = [];
+      for (const si of stub) for (let i = pieces[si]!.i0; i <= pieces[si]!.i1; i++) stubPts.push(pts[i % n]!);
+      const distToSeg = (q: Point, a0: Point, a1: Point) => {
+        const d = sub(a1, a0), L2 = dot(d, d) || 1;
+        const t = Math.max(0, Math.min(1, dot(sub(q, a0), d) / L2));
+        return len(sub(q, add(a0, mul(d, t))));
+      };
+      const lineEnd = projectOnLine(x, line.line);
+      const near = stubPts.every((q) => Math.min(distToSeg(q, r.c, x), distToSeg(q, x, add(x, mul(line.line.dir, side === -1 ? 8 : -8)))) <= tol * 1.5);
+      if (!near || len(sub(x, r.c)) > 12) continue;
+      // Remove the stub: the line takes its samples; the join between other and line is x, a corner.
+      const sorted = [...stub].sort((p, q) => q - p);
+      const first = Math.min(...stub.map((si) => pieces[si]!.i0)), last = Math.max(...stub.map((si) => pieces[si]!.i1));
+      if (side === -1) { line.i0 = first; joinAt.set(first % n, lineEnd); cornerSet.add(first % n); }
+      else { line.i1 = last; joinAt.set(last % n, lineEnd); cornerSet.add(last % n); }
+      for (const si of sorted) pieces.splice(si, 1);
+      k = -1; // restart: indices moved
+      break;
+    }
+  }
+  // Join points and tangents.
+  const m = pieces.length;
+  const joins: { p: Point; tIn: Point; tOut: Point }[] = [];
+  for (let k = 0; k < m; k++) {
+    const prev = pieces[(k - 1 + m) % m]!, cur = pieces[k]!;
+    const idx = cur.i0 % n, q = pts[idx]!;
+    const isCorner = cornerSet.has(idx);
+    let p = q;
+    if (prev.kind === "L" && cur.kind === "L") p = (isCorner && intersectLines(prev.line, cur.line)) || projectOnLine(q, cur.line);
+    else if (cur.kind === "L") p = projectOnLine(q, cur.line);
+    else if (prev.kind === "L") p = projectOnLine(q, prev.line);
+    if (len(sub(p, q)) > 4) p = q; // never move a join far
+    const forced = joinAt.get(idx);
+    if (forced) p = forced;
+    const tPrev = prev.kind === "L" ? prev.line.dir : tangent(cur.i0 === 0 ? n : cur.i0, prev.i0, cur.i0 === 0 ? n : cur.i0);
+    const tCur = cur.kind === "L" ? cur.line.dir : tangent(cur.i0, cur.i0, cur.i1);
+    if (isCorner) joins.push({ p, tIn: tPrev, tOut: tCur });
+    else {
+      // Smooth join: a line's direction wins; two curves share their average tangent.
+      const t = prev.kind === "L" ? prev.line.dir : cur.kind === "L" ? cur.line.dir : norm(add(tPrev, tCur));
+      joins.push({ p, tIn: t, tOut: t });
+    }
+  }
+  const segments: Segment[] = [];
+  let fixStart: Point | null = null;
+  for (let k = 0; k < m; k++) {
+    const cur = pieces[k]!, j0 = joins[k]!, j1 = joins[(k + 1) % m]!;
+    if (cur.kind === "L") { segments.push({ type: "L", to: j1.p }); continue; }
+    // A rounded corner between two straight edges is a true circular fillet, tangent to both.
+    const prev = pieces[(k - 1 + m) % m]!, next = pieces[(k + 1) % m]!;
+    if (prev.kind === "L" && next.kind === "L" && !cornerSet.has(cur.i0 % n) && !cornerSet.has(cur.i1 % n)) {
+      const x = intersectLines(prev.line, next.line);
+      const turn = Math.acos(Math.max(-1, Math.min(1, dot(prev.line.dir, next.line.dir))));
+      if (x && turn > (20 * Math.PI) / 180 && turn < (170 * Math.PI) / 180) {
+        const d = (len(sub(x, j0.p)) + len(sub(x, j1.p))) / 2;
+        const a0 = sub(x, mul(prev.line.dir, d)), a1 = add(x, mul(next.line.dir, d));
+        const r = d / Math.tan(turn / 2), h = (4 / 3) * Math.tan(turn / 4) * r;
+        const c = [a0, add(a0, mul(prev.line.dir, h)), sub(a1, mul(next.line.dir, h)), a1];
+        // Use it only if it stays on the traced corner.
+        let worst = 0;
+        for (let i = cur.i0; i <= cur.i1; i++) {
+          const q = pts[i % n]!;
+          let best = Infinity;
+          for (const b of sampleCubic(c, 24)) best = Math.min(best, len(sub(b, q)));
+          worst = Math.max(worst, best);
+        }
+        if (d > 0 && d < 4 * len(sub(j1.p, j0.p)) + 4 && worst <= tol) {
+          j0.p = a0; j1.p = a1;
+          // The lines either side end at the fillet.
+          const lastSeg = segments[segments.length - 1];
+          if (lastSeg && lastSeg.type === "L") lastSeg.to = a0;
+          else if (k === 0) fixStart = a0;
+          segments.push({ type: "C", c1: c[1]!, c2: c[2]!, to: a1 });
+          continue;
+        }
+      }
+    }
+    const sp: Point[] = [];
+    for (let i = cur.i0; i <= cur.i1; i++) sp.push(pts[i % n]!);
+    sp[0] = j0.p; sp[sp.length - 1] = j1.p;
+    if (sp.length < 3) { segments.push({ type: "L", to: j1.p }); continue; }
+    const { c } = fitCurveSpan(sp, j0.tOut, mul(j1.tIn, -1));
+    segments.push({ type: "C", c1: c[1]!, c2: c[2]!, to: j1.p });
+  }
+  void fixStart;
+  // joins[0].p may have moved to a fillet end; the closing segment already ends there.
+  return { start: joins[0]!.p, segments };
+}
+
 /**
  * Small or low-resolution logos (e.g. thin taglines a few px tall) give the curve fitter too few
  * points, which produces spikes and wobble. Trace a smooth bicubic upsample instead, then scale back.
@@ -1570,7 +1962,7 @@ export function vectorizeDetailed(
   // pixel steps into extra outline detail, so they are traced at source resolution.
   const k =
     set.softness >= 1 ? 1 : Math.max(1, Math.min(6, Math.floor(targetLongSide / Math.max(width, height))));
-  return vectorizeScaled(coverage, width, height, k, softness, options);
+  return cleanGeometry(vectorizeScaled(coverage, width, height, k, softness, options));
 }
 
 /**
