@@ -154,7 +154,114 @@ export function coverageFromRgba(rgba: Uint8ClampedArray, width: number, height:
     const ref = Math.min(ink, Math.max(floor, local[i]!));
     out[i] = Math.min(1, Math.max(0, (dist[i]! / ref - NOISE) / (1 - 2 * NOISE)));
   }
+  // Several ink colours (live bug: a purple, coral and white mark on navy): a solid colour
+  // that is closer to the background than its neighbour (purple beside white) was measured
+  // against the brighter neighbour's strength nearby, read as ~75% ink, and its edge was
+  // pulled inwards only where the two colours met — a visible wobble. Each pixel is also
+  // measured as a mix of the background and the solid ink colour it lies on.
+  const colors = inkColors(rgba, dist, width, height, bg, Math.max(floor, noise * 3, 24));
+  if (colors.length > 1) {
+    for (let i = 0; i < n; i++) {
+      if (out[i]! >= 1) continue;
+      const v = [(rgba[i * 4] ?? 255) - bg[0], (rgba[i * 4 + 1] ?? 255) - bg[1], (rgba[i * 4 + 2] ?? 255) - bg[2]];
+      let best = Infinity, alpha = 0;
+      for (const c of colors) {
+        const a = Math.min(1, Math.max(0, (v[0]! * c[0]! + v[1]! * c[1]! + v[2]! * c[2]!) / c[3]!));
+        const r = Math.hypot(v[0]! - a * c[0]!, v[1]! - a * c[1]!, v[2]! - a * c[2]!);
+        if (r < best) { best = r; alpha = a; }
+      }
+      // Where two ink colours meet the background (the corner where purple ends and white
+      // begins), a pixel is a blend of all three: solve for both ink shares.
+      for (let p = 0; p < colors.length && best > 3; p++)
+        for (let q = p + 1; q < colors.length; q++) {
+          const c1 = colors[p]!, c2 = colors[q]!;
+          const d12 = c1[0]! * c2[0]! + c1[1]! * c2[1]! + c1[2]! * c2[2]!;
+          const det = c1[3]! * c2[3]! - d12 * d12;
+          if (det < 1e-6 * c1[3]! * c2[3]!) continue;
+          const v1 = v[0]! * c1[0]! + v[1]! * c1[1]! + v[2]! * c1[2]!, v2 = v[0]! * c2[0]! + v[1]! * c2[1]! + v[2]! * c2[2]!;
+          const a1 = (v1 * c2[3]! - v2 * d12) / det, a2 = (v2 * c1[3]! - v1 * d12) / det;
+          if (a1 < 0 || a2 < 0 || a1 + a2 > 1.05) continue;
+          const r = Math.hypot(v[0]! - a1 * c1[0]! - a2 * c2[0]!, v[1]! - a1 * c1[1]! - a2 * c2[1]!, v[2]! - a1 * c1[2]! - a2 * c2[2]!);
+          if (r < best) { best = r; alpha = Math.min(1, a1 + a2); }
+        }
+      // Only when the pixel really is that mix (gradients and other blends keep the old measure).
+      if (best <= 14 + 0.08 * Math.sqrt(dist[i]! * ink)) out[i] = Math.max(out[i]!, Math.min(1, Math.max(0, (alpha - NOISE) / (1 - 2 * NOISE))));
+    }
+    closeColorSeams(out, rgba, dist, colors, bg, width, height, Math.max(floor, noise * 3, 24));
+  }
   return out;
+}
+
+/**
+ * Where two ink colours meet at the outline, the source often leaves a sub-pixel wedge of
+ * background between them (live bug: a purple stem ending in a point beside a white arc, and a
+ * coral arc ending beside the white — invisible in colour, a notch and a step in black & white,
+ * where every colour is one shape). A small closing fills such seams, only near pixels that
+ * have two different solid ink colours close by, so single-colour detail is never touched.
+ */
+function closeColorSeams(out: Float32Array, rgba: Uint8ClampedArray, dist: Float32Array, colors: number[][], bg: [number, number, number], width: number, height: number, min: number) {
+  // Junction zone reaches a little further than the closing, so a seam's whole wedge is covered.
+  const n = width * height, r = 3, reach = 8;
+  const near: Float32Array[] = [];
+  for (const c of colors) {
+    const own = new Float32Array(n);
+    for (let i = 0; i < n; i++) {
+      if (dist[i]! < min) continue;
+      const v = [(rgba[i * 4] ?? 255) - bg[0], (rgba[i * 4 + 1] ?? 255) - bg[1], (rgba[i * 4 + 2] ?? 255) - bg[2]];
+      // Solid pixels of this colour (within a small distance of it).
+      if (Math.hypot(v[0]! - c[0]!, v[1]! - c[1]!, v[2]! - c[2]!) < 20) own[i] = 1;
+    }
+    near.push(maxFilter(own, width, height, reach));
+  }
+  const junction = new Uint8Array(n);
+  let any = false;
+  for (let i = 0; i < n; i++) {
+    let count = 0;
+    for (const m of near) if (m[i]! > 0) count++;
+    if (count >= 2) { junction[i] = 1; any = true; }
+  }
+  if (!any) return;
+  const invert = (a: Float32Array) => a.map((v) => 1 - v);
+  // Closing (dilate, then erode) fills a wedge of background left between two colours.
+  const closed = invert(maxFilter(invert(maxFilter(out, width, height, r)), width, height, r));
+  for (let i = 0; i < n; i++) if (junction[i]) out[i] = Math.max(out[i]!, closed[i]!);
+}
+
+/**
+ * The solid ink colours of an opaque logo, as offsets from the background with their squared
+ * length ([dr, dg, db, |d|²]): pixels clearly away from the background whose four neighbours
+ * match them, grouped into colour buckets; only buckets with a real share of the ink count.
+ */
+function inkColors(rgba: Uint8ClampedArray, dist: Float32Array, width: number, height: number, bg: [number, number, number], min: number) {
+  const buckets = new Map<number, number[]>();
+  let solid = 0;
+  const px = (i: number, c: number) => rgba[i * 4 + c] ?? 255;
+  for (let y = 1; y < height - 1; y++)
+    for (let x = 1; x < width - 1; x++) {
+      const i = y * width + x;
+      if (dist[i]! < min) continue;
+      let flat = true;
+      for (const j of [i - 1, i + 1, i - width, i + width])
+        if (Math.abs(px(j, 0) - px(i, 0)) + Math.abs(px(j, 1) - px(i, 1)) + Math.abs(px(j, 2) - px(i, 2)) > 9) { flat = false; break; }
+      if (!flat) continue;
+      solid++;
+      const key = ((px(i, 0) >> 4) << 8) | ((px(i, 1) >> 4) << 4) | (px(i, 2) >> 4);
+      const b = buckets.get(key) ?? [0, 0, 0, 0];
+      b[0]! += px(i, 0); b[1]! += px(i, 1); b[2]! += px(i, 2); b[3]!++;
+      buckets.set(key, b);
+    }
+  // Largest buckets first; a bucket next to a kept colour (same colour split by a bucket edge) merges into it.
+  const kept: number[][] = [];
+  for (const [r, g, bl, count] of [...buckets.values()].sort((p, q) => q[3]! - p[3]!)) {
+    if (count! < Math.max(20, solid * 0.01) || kept.length >= 8) break;
+    const c = [r! / count!, g! / count!, bl! / count!];
+    if (kept.some((k) => Math.hypot(k[0]! - c[0]!, k[1]! - c[1]!, k[2]! - c[2]!) < 20)) continue;
+    kept.push(c);
+  }
+  return kept.map((c) => {
+    const d = [c[0]! - bg[0], c[1]! - bg[1], c[2]! - bg[2]];
+    return [d[0]!, d[1]!, d[2]!, d[0]! * d[0]! + d[1]! * d[1]! + d[2]! * d[2]!];
+  });
 }
 
 /** Separable square max filter of radius r. */

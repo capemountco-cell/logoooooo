@@ -231,3 +231,41 @@ describe("vectorize", () => {
     expect(radii[0]!).toBeLessThan(7);
   });
 });
+
+describe("coverageFromRgba with several ink colours", () => {
+  // Live bug: a purple, coral and white mark on navy. Next to the white, the purple read as
+  // ~75% ink, so the black & white outline was pulled in only where the colours met.
+  const W = 80, H = 80;
+  const paint = (aaLeft: boolean) => {
+    const rgba = new Uint8ClampedArray(W * H * 4);
+    const navy = [29, 6, 124], purple = [120, 82, 247], white = [252, 251, 251];
+    for (let y = 0; y < H; y++)
+      for (let x = 0; x < W; x++) {
+        // Stem from x = 20.5 to 60: purple on top, white below y = 40; a half-covered left column.
+        let c = x >= 21 && x < 60 && y >= 10 && y < 70 ? (y < 40 ? purple : white) : navy;
+        if (aaLeft && x === 20 && y >= 10 && y < 70) c = (y < 40 ? purple : white).map((v, k) => (v + navy[k]!) / 2);
+        rgba.set([...c, 255], (y * W + x) * 4);
+      }
+    return rgba;
+  };
+  it("measures a darker ink beside a brighter one as solid, with the same edge", () => {
+    const cov = coverageFromRgba(paint(true), W, H);
+    // Purple right beside the white is solid ink.
+    for (const y of [36, 38, 39]) expect(cov[y * W + 30]).toBeCloseTo(1, 2);
+    // The half-covered edge reads the same next to the white as far from it.
+    const far = cov[15 * W + 20]!, near = cov[38 * W + 20]!, white = cov[60 * W + 20]!;
+    expect(Math.abs(near - far)).toBeLessThan(0.02);
+    expect(Math.abs(white - far)).toBeLessThan(0.02);
+  });
+  it("closes a sub-pixel background seam where two colours meet at the outline", () => {
+    const rgba = paint(false);
+    // The white part starts one pixel further in for a few rows below the junction.
+    for (let y = 40; y < 44; y++) rgba.set([29, 6, 124, 255], (y * W + 21) * 4);
+    const cov = coverageFromRgba(rgba, W, H);
+    for (let y = 40; y < 44; y++) expect(cov[y * W + 21]).toBeGreaterThan(0.5);
+    // Away from any colour junction the same notch would stay (single-colour detail is kept).
+    const mono = paint(false);
+    for (let y = 60; y < 64; y++) mono.set([29, 6, 124, 255], (y * W + 21) * 4);
+    expect(coverageFromRgba(mono, W, H)[61 * W + 21]).toBeLessThan(0.5);
+  });
+});
