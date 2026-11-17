@@ -11,7 +11,7 @@ import type { ConceptState } from "@/lib/concept-pipeline";
 import { downloadFile, isMobileSaveDevice } from "@/lib/save-png";
 
 type Task = { id: string; notes: string };
-type Format = "svg" | "ai" | "png";
+type Format = "svg" | "ai" | "eps" | "png";
 
 const MAX_DRAFTS = 24;
 const blank = (): Draft => ({ id: crypto.randomUUID(), notes: "" });
@@ -92,7 +92,7 @@ export function BriefBatch({ onOpen, active = true, onRunning }: { onOpen: (c: C
   // Started straight from the tap so mobile sharing is allowed.
   function saveAll() {
     setSaveError("");
-    const files = readyFiles.map((f) => (format === "svg" ? f.svgFile : format === "ai" ? f.aiFile : f.pngFile));
+    const files = readyFiles.flatMap((f) => (format === "svg" ? [f.svgFile] : format === "ai" ? [f.aiFile] : format === "eps" ? f.epsFiles : [f.pngFile]));
     if (!files.length) return;
     if (isMobileSaveDevice() && typeof navigator.share === "function" && navigator.canShare?.({ files })) {
       navigator.share({ files }).catch((e: unknown) => {
@@ -189,7 +189,7 @@ export function BriefBatch({ onOpen, active = true, onRunning }: { onOpen: (c: C
                     <>
                       <span className="flex-1" />
                       <div role="radiogroup" aria-label="Download format" className="flex rounded-lg border border-input bg-background p-0.5">
-                        {fmtBtn("ai", ".Ai")}{fmtBtn("svg", ".SVG")}{fmtBtn("png", ".PNG")}
+                        {fmtBtn("ai", ".Ai")}{fmtBtn("eps", ".EPS")}{fmtBtn("svg", ".SVG")}{fmtBtn("png", ".PNG")}
                       </div>
                       <Btn variant="ok" onClick={saveAll} disabled={!readyFiles.length} className="h-[26px]">
                         <Download className="h-3.5 w-3.5" aria-hidden="true" />

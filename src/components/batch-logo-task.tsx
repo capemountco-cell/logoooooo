@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { AlertCircle, Check, RotateCcw, X } from "lucide-react";
 import { executeLogoTask, type TaskMode, type TaskOptions } from "@/lib/logo-task";
-import { aiFile, flattenLogo, logoFile, saveLogoSvg } from "@/lib/logo-files";
+import { aiFile, epsFiles, flattenLogo, logoFile, saveFiles, saveLogoSvg } from "@/lib/logo-files";
 import { streamImage } from "@/lib/stream-image";
 import { toOutputs } from "@/lib/logo-convert";
 import { prepareReference, shapeMatch } from "@/lib/reference-prep";
@@ -9,7 +9,7 @@ import { savePng } from "@/lib/save-png";
 import { baseName } from "@/components/app/modes";
 
 export type BatchJob = { id: string; file: File; options: TaskOptions | null };
-export type BatchFiles = { svgFile: File; aiFile: File; pngFile: File; whiteFile: File };
+export type BatchFiles = { svgFile: File; aiFile: File; epsFiles: File[]; pngFile: File; whiteFile: File };
 type Output = BatchFiles & { png: string; match: number | null; accuracy: number };
 
 export function BatchLogoTask({
@@ -72,12 +72,13 @@ export function BatchLogoTask({
           whiteFile: logoFile(converted.board.whitePng, `${name}-white.png`, "image/png"),
           svgFile: logoFile(converted.board.svg, `${name}.svg`, "image/svg+xml"),
           aiFile: aiFile(converted.board.svg, name),
+          epsFiles: Object.values(epsFiles(converted.board.svg, name)),
         };
       },
     }).then((result) => {
       if (abort.signal.aborted) return;
       setOutput(result); setProgress(100); setStatus("Ready");
-      report.current({ svgFile: result.svgFile, aiFile: result.aiFile, pngFile: result.pngFile, whiteFile: result.whiteFile });
+      report.current({ svgFile: result.svgFile, aiFile: result.aiFile, epsFiles: result.epsFiles, pngFile: result.pngFile, whiteFile: result.whiteFile });
     }).catch((e: unknown) => {
       if (abort.signal.aborted) return;
       setStatus("Failed"); setError(e instanceof Error ? e.message : "Could not create this logo.");
@@ -144,9 +145,10 @@ export function BatchLogoTask({
           </div>
         )}
         {output && !drifted && (
-          <div className="grid grid-cols-3 gap-1.5">
+          <div className="grid grid-cols-4 gap-1.5">
             <button type="button" aria-label={`Save SVG ${job.file.name}`} onClick={() => { void saveLogoSvg(output.svgFile).catch((e: unknown) => setError(e instanceof Error ? e.message : "Saving failed.")); }} className="h-10 rounded-[10px] bg-primary text-[13px] font-semibold text-primary-foreground">.SVG</button>
             <button type="button" aria-label={`Save Illustrator file ${job.file.name}`} onClick={() => { void saveLogoSvg(output.aiFile).catch((e: unknown) => setError(e instanceof Error ? e.message : "Saving failed.")); }} className="h-10 rounded-[10px] border border-border text-[13px] font-medium">.Ai</button>
+            <button type="button" aria-label={`Save EPS files (print CMYK and digital RGB) ${job.file.name}`} title="Print (CMYK) and Digital (RGB) EPS" onClick={() => { void saveFiles(output.epsFiles).catch((e: unknown) => setError(e instanceof Error ? e.message : "Saving failed.")); }} className="h-10 rounded-[10px] border border-border text-[13px] font-medium">.EPS</button>
             <button
               type="button"
               disabled={saving}
