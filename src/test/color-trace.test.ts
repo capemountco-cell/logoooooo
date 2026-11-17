@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { adviseColor, isOverlay, toLayeredSvg, traceColor } from "@/lib/color-trace";
+import { adviseColor, isOverlay, segment, toLayeredSvg, traceColor } from "@/lib/color-trace";
 import { decodePng } from "./decode-png";
 
 /** Renders an RGBA image from a colour function, 4×4 supersampled for antialiased edges. */
@@ -149,5 +149,38 @@ describe("colour tracing", () => {
     expect(Math.abs(f.cx - 60.5)).toBeLessThan(8);
     expect(Math.abs(f.cy - 50.5)).toBeLessThan(10);
     expect(Math.abs(f.sy - 1.3)).toBeLessThan(0.25);
+  });
+});
+
+describe("background pockets between nearly-touching letters", () => {
+  // White-on-navy wordmark, like the user's "HealthyAds": two white letters 4px apart with
+  // soft (blended) edges, true navy in the gap, and a darker navy border (as compression or a
+  // vignette leaves it) that throws off the border-based background estimate.
+  function wordmark() {
+    const W = 220, H = 120, rgba = new Uint8ClampedArray(W * H * 4);
+    const set = (x: number, y: number, c: number[]) => { const i = (y * W + x) * 4; rgba[i] = c[0]!; rgba[i + 1] = c[1]!; rgba[i + 2] = c[2]!; rgba[i + 3] = 255; };
+    const navy = [27, 7, 130], edge = [19, 3, 99], white = [253, 253, 253], blend = [140, 130, 190];
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) set(x, y, x < 4 || y < 4 || x >= W - 4 || y >= H - 4 ? edge : navy);
+    const letter = (x0: number, x1: number) => {
+      for (let y = 30; y < 90; y++)
+        for (let x = x0; x <= x1; x++) set(x, y, x === x0 || x === x1 || y === 30 || y === 89 ? blend : white);
+    };
+    letter(40, 106);
+    letter(111, 180); // a 4px gap (107–110): its two middle columns stay navy, walled off by blended edges
+    // Soft edges reaching into the gap from both letters, so the background flood can't get in.
+    for (let y = 30; y < 90; y++) { set(107, y, blend); set(110, y, blend); }
+    for (let x = 107; x <= 110; x++) { set(x, 30, blend); set(x, 89, blend); }
+    return { rgba, W, H };
+  }
+
+  it("never traces the navy gap as a shape of its own", () => {
+    const { rgba, W, H } = wordmark();
+    const seg = segment(rgba, W, H, { shading: true });
+    const shapes = [...seg.regions.values()].filter((r) => !r.background);
+    expect(shapes.length).toBeGreaterThan(0);
+    // Every shape left is a white letter; nothing navy-coloured survives.
+    expect(shapes.every((r) => r.rgb[0] > 200 && r.rgb[1] > 200)).toBe(true);
+    const layers = traceColor(rgba, W, H).layers;
+    expect(layers.every((l) => l.fill.type !== "solid" || !/^#[0-3][0-9a-f]0[0-9a-f][4-9a-f][0-9a-f]$/i.test(l.fill.color))).toBe(true);
   });
 });

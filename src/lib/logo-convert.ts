@@ -113,11 +113,18 @@ export type LogoOutputs = {
 };
 
 /** Border colour of an opaque upload when it is a real colour; null for white or near-white. */
+/**
+ * The upload's own background colour ("Brand"), from a ring a little inside the edge — the
+ * outermost pixels are often darker or tinted (compression, vignettes, blurred edges), which
+ * made the Brand PNG a different shade from the real background.
+ */
 function brandBackground(d: Uint8ClampedArray, width: number, height: number) {
   const ch: number[][] = [[], [], []];
   const push = (x: number, y: number) => { const i = (y * width + x) * 4; for (let c = 0; c < 3; c++) ch[c]!.push(d[i + c]!); };
-  for (let x = 0; x < width; x++) { push(x, 0); push(x, height - 1); }
-  for (let y = 1; y < height - 1; y++) { push(0, y); push(width - 1, y); }
+  const inset = Math.max(3, Math.min(16, Math.round(Math.min(width, height) * 0.03)));
+  const k = inset * 2 + 2 < Math.min(width, height) ? inset : 0;
+  for (let x = k; x < width - k; x++) { push(x, k); push(x, height - 1 - k); }
+  for (let y = k + 1; y < height - 1 - k; y++) { push(k, y); push(width - 1 - k, y); }
   const med = ch.map((v) => v.sort((a, b) => a - b)[v.length >> 1] ?? 255);
   if (med.every((v) => v >= 235)) return null;
   return `#${med.map((v) => v.toString(16).padStart(2, "0")).join("")}`;
