@@ -74,6 +74,7 @@ const TRAIL_FOLLOW = 0.4; // how fast the trail follows (higher = shorter lag be
 const BG_FLOOD = 14; // background flood from the border: max ΔE from the background colour
 const BG_ANY = 5; // anywhere in the image: this close to the background colour is background
 const BG_DE = 12; // regions this close to the background colour are background
+const BG_POCKET = 25; // small pockets this close to the background, and closer to it than to the shapes around them, are background
 
 export function segment(rgba: Uint8ClampedArray, width: number, height: number, opts: { shading?: boolean } = {}): Segmentation {
   const n = width * height;
@@ -89,14 +90,23 @@ export function segment(rgba: Uint8ClampedArray, width: number, height: number, 
   }
   const transparent = clear > n * 0.02;
 
-  // Background colour for opaque images: median of the border.
-  const border: number[][] = [[], [], []];
-  const push = (x: number, y: number) => { const i = y * width + x; for (let c = 0; c < 3; c++) border[c]!.push(rgb[i * 3 + c]!); };
-  for (let x = 0; x < width; x++) { push(x, 0); push(x, height - 1); }
-  for (let y = 1; y < height - 1; y++) { push(0, y); push(width - 1, y); }
+  // Background colour for opaque images: the median of a ring a little inside the edge. The
+  // outermost pixels are often off (compression, vignettes, blurred or framed edges); judged
+  // against them, the real background inside became one huge shape or a scatter of specks.
+  // The outermost ring's own colour still counts as background too.
   const med = (v: number[]) => v.sort((p, q) => p - q)[v.length >> 1] ?? 255;
-  const bgRgb = border.map(med) as [number, number, number];
+  const ringMedian = (k: number) => {
+    const ring: number[][] = [[], [], []];
+    const push = (x: number, y: number) => { const i = y * width + x; for (let c = 0; c < 3; c++) ring[c]!.push(rgb[i * 3 + c]!); };
+    for (let x = k; x < width - k; x++) { push(x, k); push(x, height - 1 - k); }
+    for (let y = k + 1; y < height - 1 - k; y++) { push(k, y); push(width - 1 - k, y); }
+    return ring.map(med) as [number, number, number];
+  };
+  const edgeRgb = ringMedian(0);
+  const inset = Math.max(3, Math.min(16, Math.round(Math.min(width, height) * 0.03)));
+  const bgRgb = inset * 2 + 2 < Math.min(width, height) ? ringMedian(inset) : edgeRgb;
   const bgLab = labOf(...bgRgb);
+  const edgeLab = labOf(...edgeRgb);
 
   const labels = new Int32Array(n).fill(-2);
   const queue = new Int32Array(n);
@@ -111,11 +121,17 @@ export function segment(rgba: Uint8ClampedArray, width: number, height: number, 
   // background colour, plus near-exact background colour anywhere (enclosed gaps). Ink
   // regions then grow only among what is left, so a soft edge can never merge a shape into
   // the background, or the background into a shape.
+  let bgSeen: [number, number, number] = bgLab;
   if (!transparent) {
     const id = next++;
-    const near = (i: number) => Math.hypot(lab[i * 3]! - bgLab[0], lab[i * 3 + 1]! - bgLab[1], lab[i * 3 + 2]! - bgLab[2]);
+    const near = (i: number) =>
+      Math.min(
+        Math.hypot(lab[i * 3]! - bgLab[0], lab[i * 3 + 1]! - bgLab[1], lab[i * 3 + 2]! - bgLab[2]),
+        Math.hypot(lab[i * 3]! - edgeLab[0], lab[i * 3 + 1]! - edgeLab[1], lab[i * 3 + 2]! - edgeLab[2]),
+      );
     let head = 0, tail = 0, area = 0;
     let x0 = width, y0 = height, x1 = -1, y1 = -1;
+    let mL = 0, ma = 0, mb = 0;
     const seed = (i: number) => {
       if (labels[i] !== -2 || near(i) > BG_FLOOD) return;
       labels[i] = id;
@@ -123,10 +139,12 @@ export function segment(rgba: Uint8ClampedArray, width: number, height: number, 
     };
     for (let x = 0; x < width; x++) { seed(x); seed((height - 1) * width + x); }
     for (let y = 0; y < height; y++) { seed(y * width); seed(y * width + width - 1); }
-    for (let i = 0; i < n; i++) if (labels[i] === -2 && near(i) <= BG_ANY) { labels[i] = id; queue[tail++] = i; }
+    const nearBg = (i: number) => Math.hypot(lab[i * 3]! - bgLab[0], lab[i * 3 + 1]! - bgLab[1], lab[i * 3 + 2]! - bgLab[2]);
+    for (let i = 0; i < n; i++) if (labels[i] === -2 && nearBg(i) <= BG_ANY) { labels[i] = id; queue[tail++] = i; }
     while (head < tail) {
       const p = queue[head++]!;
       area++;
+      mL += (lab[p * 3]! - mL) / area; ma += (lab[p * 3 + 1]! - ma) / area; mb += (lab[p * 3 + 2]! - mb) / area;
       const x = p % width, y = (p / width) | 0;
       if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y;
       if (x > 0) seed(p - 1);
@@ -134,8 +152,13 @@ export function segment(rgba: Uint8ClampedArray, width: number, height: number, 
       if (y > 0) seed(p - width);
       if (y < height - 1) seed(p + width);
     }
-    if (area)
+    if (area) {
+      // The colour the background really has, measured over every pixel the flood reached:
+      // the border estimate can be off (dark corners, compression), and judging enclosed
+      // pockets against it left real background between nearly-touching letters as shapes.
+      bgSeen = [mL, ma, mb];
       regions.set(id, { id, area, lab: bgLab, rgb: bgRgb, x0, y0, x1, y1, background: true, model: { kind: "flat", rgb: bgRgb } });
+    }
   }
 
   for (let s = 0; s < n; s++) {
@@ -238,13 +261,48 @@ export function segment(rgba: Uint8ClampedArray, width: number, height: number, 
   const dropSet = new Set(drop);
   for (let i = 0; i < n; i++) if (dropSet.has(labels[i]!)) labels[i] = -1;
   for (const id of drop) regions.delete(id);
-  // Any other region that is still background-coloured (e.g. an enclosed off-white patch).
-  if (!transparent)
+  // Any other region that is still background-coloured (e.g. an enclosed off-white patch, or
+  // a pocket of background between letters the flood couldn't reach through their soft edges).
+  if (!transparent) {
+    const toBg = (l: [number, number, number]) => Math.min(Math.hypot(l[0] - bgLab[0], l[1] - bgLab[1], l[2] - bgLab[2]), Math.hypot(l[0] - bgSeen[0], l[1] - bgSeen[1], l[2] - bgSeen[2]));
     for (const r of regions.values())
-      if (!r.background && Math.hypot(r.lab[0] - bgLab[0], r.lab[1] - bgLab[1], r.lab[2] - bgLab[2]) < BG_DE) {
+      if (!r.background && toBg(r.lab) < BG_DE) {
         r.background = true;
         r.model = { kind: "flat", rgb: bgRgb };
       }
+    // Small pockets whose colour is closer to the background than to every shape around them
+    // are background too (live bug: navy specks traced between the "e"/"a" and "t"/"h" of a
+    // white-on-navy logo). Neighbours are looked up two pixels out, across dropped edge pixels.
+    const pocketMax = Math.max(400, Math.round(n * 0.004));
+    const near2 = new Map<number, Set<number>>();
+    for (let i = 0; i < n; i++) {
+      const l = labels[i]!;
+      const r = regions.get(l);
+      if (!r || r.background || r.area > pocketMax) continue;
+      const x = i % width, y = (i / width) | 0;
+      for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1], [2, 0], [-2, 0], [0, 2], [0, -2]] as const) {
+        const xx = x + dx, yy = y + dy;
+        if (xx < 0 || yy < 0 || xx >= width || yy >= height) continue;
+        const m = labels[yy * width + xx]!;
+        if (m > 0 && m !== l) {
+          let set = near2.get(l);
+          if (!set) near2.set(l, (set = new Set()));
+          set.add(m);
+        }
+      }
+    }
+    for (const [id, set] of near2) {
+      const r = regions.get(id)!;
+      const dBg = toBg(r.lab);
+      if (dBg > BG_POCKET) continue;
+      const shapes = [...set].map((m) => regions.get(m)).filter((x): x is Region => Boolean(x) && !x!.background);
+      const dShape = Math.min(Infinity, ...shapes.map((x) => Math.hypot(r.lab[0] - x.lab[0], r.lab[1] - x.lab[1], r.lab[2] - x.lab[2])));
+      if (dBg < dShape) {
+        r.background = true;
+        r.model = { kind: "flat", rgb: bgRgb };
+      }
+    }
+  }
   if (opts.shading) next = splitAppendages(labels, lab, rgb, width, regions, next);
   const seg: Segmentation = { width, height, transparent, labels, regions, alpha, rgb, lab, bgRgb };
   for (const r of regions.values()) if (!r.background) r.model = fitModel(seg, r, opts.shading ?? false);
